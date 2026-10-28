@@ -219,7 +219,10 @@ server.on('error', (err) => {
     console.error(err.code === 'EADDRINUSE' ? `Port ${ADMIN_PORT} is already in use.` : err.message);
     process.exit(1);
 });
-server.listen(ADMIN_PORT, '127.0.0.1', () => console.log(`Admin panel: http://127.0.0.1:${ADMIN_PORT}`));
+const PORT = process.env.PORT || ADMIN_PORT;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Admin panel running on port ${PORT}`);
+});
 
 checkDriver();
 // While the driver is missing, keep checking so the setup box disappears right after installing
