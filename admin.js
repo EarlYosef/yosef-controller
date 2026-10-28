@@ -112,35 +112,29 @@ function startServer() {
     });
 }
 
-function startTunnel() {
-    return new Promise((resolve, reject) => {
-        if (process.env.RENDER) {
-            return resolve(`https://${process.env.RENDER_EXTERNAL_URL || 'yosef-controller.onrender.com'}`);
+function checkDriver() {
+    if (process.env.RENDER) {
+        driver = { platform: 'cloud', ok: true, url: '', hint: '' };
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+        if (process.platform === 'win32') {
+            execFile('sc.exe', ['query', 'ViGEmBus'], (err) => {
+                driver = { platform: 'win32', ok: !err, url: VIGEM_URL, hint: '' };
+                resolve();
+            });
+        } else if (process.platform === 'linux') {
+            const paths = ['/dev/uinput', '/dev/input/uinput'];
+            const ok = paths.some(p => { try { fs.accessSync(p, fs.constants.W_OK); return true; } catch (e) { return false; } });
+            driver = {
+                platform: 'linux', ok, url: '',
+                hint: 'The virtual gamepad needs permission. Start with: sudo node admin.js'
+            };
+            resolve();
+        } else {
+            driver = { platform: process.platform, ok: true, url: '', hint: '' };
+            resolve();
         }
-        
-        const proc = spawn(CLOUDFLARED, ['tunnel', '--url', `http://localhost:${VIEWER_PORT}`, '--no-autoupdate'],
-            { stdio: ['ignore', 'pipe', 'pipe'] });
-        tunnelProc = proc;
-        let found = false;
-        const timer = setTimeout(() => reject(new Error('The tunnel took too long. Check your internet.')), 40000);
-        const onData = (buf) => {
-            if (found) return;
-            const urls = String(buf).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi) || [];
-            const url = urls.find(u => !u.includes('//api.'));
-            if (url) { found = true; clearTimeout(timer); resolve(url); }
-        };
-        proc.stdout.on('data', onData);
-        proc.stderr.on('data', onData);
-        proc.on('error', (err) => {
-            clearTimeout(timer);
-            reject(err.code === 'ENOENT' ? new Error('cloudflared is not installed (or not in PATH).') : err);
-        });
-        proc.on('exit', (code) => {
-            clearTimeout(timer);
-            if (tunnelProc === proc) tunnelProc = null;
-            if (!found) reject(new Error(`cloudflared stopped (code ${code}).`));
-            else if (status === 'online') disconnect('The tunnel stopped unexpectedly.');
-        });
     });
 }
 
