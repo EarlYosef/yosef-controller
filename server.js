@@ -570,8 +570,10 @@ server.on('error', (err) => {
     process.exit(1);
 });
 
-server.listen(VIEWER_PORT, '0.0.0.0', () => {
-    console.log(`Controller server running on port ${VIEWER_PORT}.`);
+const PORT = process.env.PORT || VIEWER_PORT;
+
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Controller server running on port ${PORT}.`);
     if (process.send) process.send({ type: 'ready' });
 });
 
