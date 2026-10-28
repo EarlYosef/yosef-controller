@@ -21,14 +21,13 @@ let settings = { locked: false, code: '', turnSeconds: 180, frozen: false, maxPl
 const VIGEM_URL = 'https://github.com/nefarius/ViGEmBus/releases';
 let driver = { platform: process.platform, ok: true, url: '', hint: '' };
 
-function checkDriver() {
-    return new Promise((resolve) => {
-        const done = (next) => {
-            const changed = JSON.stringify(next) !== JSON.stringify(driver);
-            driver = next;
-            if (changed) push();
-            resolve();
-        };
+function startTunnel() {
+    return new Promise((resolve, reject) => {
+        if (process.env.RENDER) {
+            // On Render, we use Render's own public URL instead of a local tunnel!
+            return resolve(`https://${process.env.RENDER_EXTERNAL_URL || 'your-service.onrender.com'}`);
+        }
+        // ... rest of your original startTunnel code ...
         if (process.platform === 'win32') {
             // The ViGEmBus driver installs a Windows service with this name
             execFile('sc.exe', ['query', 'ViGEmBus'], (err) =>
