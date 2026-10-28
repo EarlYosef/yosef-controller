@@ -114,6 +114,11 @@ function startServer() {
 
 function startTunnel() {
     return new Promise((resolve, reject) => {
+        if (process.env.RENDER) {
+            // On Render, we use Render's own public URL instead of a local tunnel!
+            return resolve(`https://${process.env.RENDER_EXTERNAL_URL || 'yosef-controller.onrender.com'}`);
+        }
+        
         const proc = spawn(CLOUDFLARED, ['tunnel', '--url', `http://localhost:${VIEWER_PORT}`, '--no-autoupdate'],
             { stdio: ['ignore', 'pipe', 'pipe'] });
         tunnelProc = proc;
