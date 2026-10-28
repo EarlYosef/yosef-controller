@@ -1,0 +1,397 @@
+/* =====================================================
+   ADMIN PANEL STYLE: soft (neumorphic) look in black
+   Black surface, raised cards and buttons, sunken input fields.
+   Other versions: style.light.css (light grey), style.dark.css (the first dark style)
+   ===================================================== */
+
+:root {
+    --bg: #1b1c21;                       /* the black surface */
+    --sl: rgba(255, 255, 255, 0.06);     /* light side of every shadow */
+    --sd: rgba(0, 0, 0, 0.8);            /* dark side of every shadow */
+    --tx: #e4e6ee;
+    --mu: #8b8d9c;
+    --ac: #4d8dff;
+    --ok: #34c77b;
+    --bad: #ff6b7d;
+    --warn: #f0a030;
+    --line: rgba(255, 255, 255, 0.07);
+    color-scheme: dark;                  /* dark dropdown lists and checkboxes */
+    --raise: 9px 9px 18px var(--sd), -9px -9px 18px var(--sl);
+    --raise-sm: 5px 5px 10px var(--sd), -5px -5px 10px var(--sl);
+    --inset: inset 4px 4px 9px var(--sd), inset -4px -4px 9px var(--sl);
+}
+
+
+/* ---------- 1. Base ---------- */
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px;
+    font-family: system-ui, 'Segoe UI', sans-serif;
+    color: var(--tx);
+    background: var(--bg);
+}
+
+
+/* ---------- 2. Card ---------- */
+.card {
+    width: min(500px, 100%);
+    padding: 28px 24px 24px;
+    border-radius: 32px;
+    background: var(--bg);
+    box-shadow: var(--raise);
+}
+
+h1 {
+    margin: 0 0 20px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--tx);
+    text-shadow: 0 1px 0 #000;
+}
+
+.box {
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 22px;
+    background: var(--bg);
+    box-shadow: var(--inset);
+}
+
+.box h3 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--mu);
+}
+
+.hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--mu);
+}
+
+.warn {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--warn);
+}
+
+
+/* ---------- 3. Buttons ---------- */
+button {
+    font: inherit;
+    font-weight: 700;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--bg);
+    color: var(--tx);
+    box-shadow: var(--raise-sm);
+    cursor: pointer;
+    transition: box-shadow 0.12s, color 0.12s;
+}
+
+button:hover {
+    color: var(--ac);
+}
+
+button:active {
+    box-shadow: var(--inset);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Connect / Disconnect */
+#main {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    font-size: 17px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-radius: 20px;
+    background: var(--ac);
+    color: #fff;
+    box-shadow: var(--raise);
+}
+
+#main:hover {
+    color: #fff;
+    filter: brightness(1.06);
+}
+
+#main:active {
+    box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.25), inset -3px -3px 6px rgba(255, 255, 255, 0.15);
+}
+
+#main.off {
+    background: var(--bad);
+}
+
+#main:disabled {
+    background: var(--bg);
+    color: var(--mu);
+    box-shadow: var(--inset);
+    filter: none;
+}
+
+/* Pause / freeze */
+button.pause {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--warn);
+}
+
+/* Driver setup box + link-style button */
+.setup {
+    box-shadow: var(--inset), 0 0 0 2px rgba(240, 160, 48, 0.4);
+}
+
+.gate h2 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    color: var(--tx);
+}
+
+.gate p {
+    margin: 0 0 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--tx);
+}
+
+.gate ol {
+    margin: 0 0 14px;
+    padding-left: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--tx);
+}
+
+.gate .hint {
+    margin-top: 12px;
+}
+
+a.btn {
+    display: inline-block;
+    padding: 9px 16px;
+    border-radius: 14px;
+    background: var(--ac);
+    color: #fff;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: var(--raise-sm);
+}
+
+
+/* ---------- 4. Status message ---------- */
+#msg {
+    min-height: 18px;
+    margin: 14px 0 4px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--mu);
+}
+
+#msg.err {
+    color: var(--bad);
+}
+
+
+/* ---------- 5. Link box ---------- */
+.row {
+    display: flex;
+    gap: 10px;
+}
+
+#link,
+#ovl {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 14px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--bg);
+    box-shadow: var(--inset);
+    color: var(--tx);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+}
+
+#copy,
+#ovlCopy {
+    color: var(--ac);
+}
+
+#qr {
+    display: flex;
+    justify-content: center;
+    width: fit-content;
+    margin: 14px auto 0;
+    padding: 10px;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: var(--raise-sm);
+}
+
+#qr:empty {
+    display: none;
+}
+
+
+/* ---------- 6. Players ---------- */
+.who {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.who button {
+    margin-left: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 11px;
+}
+
+#queue div,
+#blocked div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+}
+
+#blocked button,
+#unbanAll,
+#queue button {
+    margin-left: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    border-radius: 10px;
+}
+
+
+/* ---------- Share my screen ---------- */
+.snd {
+    margin: 14px 0 4px;
+    font-size: 13px;
+}
+
+#shareQ,
+#soundQ,
+#soundSrc {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: var(--inset);
+    color: var(--tx);
+    font: inherit;
+    font-size: 12.5px;
+    outline: none;
+}
+
+.meter {
+    height: 8px;
+    margin-top: 12px;
+    border-radius: 4px;
+    background: var(--bg);
+    box-shadow: var(--inset);
+    overflow: hidden;
+}
+
+#soundBar {
+    width: 0;
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--ok), var(--ac));
+    transition: width 0.1s;
+}
+
+#shareBtn {
+    flex: 1;
+    color: var(--ac);
+}
+
+#sharePreview {
+    display: block;
+    max-width: 220px;
+    margin-top: 10px;
+    border-radius: 14px;
+    box-shadow: var(--raise-sm);
+}
+
+
+/* ---------- 7. Options ---------- */
+.opts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    font-size: 13px;
+}
+
+.opts label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.opts .wide {
+    grid-column: 1 / -1;
+}
+
+input[type="checkbox"] {
+    accent-color: var(--ac);
+    width: 16px;
+    height: 16px;
+}
+
+#stream {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
+
+.opts input[type="text"],
+.opts select {
+    width: 118px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--bg);
+    box-shadow: var(--inset);
+    color: var(--tx);
+    font: inherit;
+    outline: none;
+}

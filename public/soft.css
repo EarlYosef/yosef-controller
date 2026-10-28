@@ -1,0 +1,275 @@
+
+/* =====================================================
+   SOFT LOOK for the controller (neumorphic)
+   Light grey surface, raised buttons, sunken fields.
+   It only applies while the page has the class "soft"
+   (the Look setting switches it back to the dark style).
+   Loaded last, so it wins over style.css and fit.css.
+   ===================================================== */
+
+body.soft {
+    --bg: #e0e5ec;
+    --sl: rgba(255, 255, 255, 0.95);
+    --sd: rgba(163, 177, 198, 0.78);
+    --tx: #4a4f6a;
+    --mu: #8a90a8;
+    --ac: #3d7eff;
+    --bad: #e5586b;
+    --ts: 1px 1px 0 #fff;                       /* text shadow */
+    --glass: rgba(224, 229, 236, 0.9);          /* buttons over a live picture */
+    --line: rgba(163, 177, 198, 0.45);
+    --track: rgba(163, 177, 198, 0.55);
+    --raise: 8px 8px 16px var(--sd), -8px -8px 16px var(--sl);
+    --raise-sm: 5px 5px 10px var(--sd), -5px -5px 10px var(--sl);
+    --inset: inset 4px 4px 8px var(--sd), inset -4px -4px 8px var(--sl);
+    background: var(--bg);
+    color: var(--tx);
+}
+
+/* BLACK version (the default): same shapes, black surface */
+body.soft.black {
+    --bg: #1b1c21;
+    --sl: rgba(255, 255, 255, 0.06);
+    --sd: rgba(0, 0, 0, 0.8);
+    --tx: #e4e6ee;
+    --mu: #8b8d9c;
+    --ac: #4d8dff;
+    --bad: #ff6b7d;
+    --ts: 0 1px 0 #000;
+    --glass: rgba(27, 28, 33, 0.9);
+    --line: rgba(255, 255, 255, 0.08);
+    --track: #2c2e36;
+    color-scheme: dark;
+}
+
+html:has(body.soft) { background: #e0e5ec; }
+html:has(body.soft.black) { background: #1b1c21; }
+
+
+/* ---------- Title and status ---------- */
+body.soft h2 {
+    background: none;
+    -webkit-text-fill-color: var(--tx);
+    color: var(--tx);
+    filter: none;
+    text-shadow: var(--ts);
+}
+
+body.soft #status {
+    background: var(--bg);
+    border: 0;
+    border-radius: 999px;
+    box-shadow: var(--raise-sm);
+    color: var(--tx);
+}
+
+
+/* ---------- The panel ---------- */
+body.soft .controller-container {
+    background: var(--bg);
+    border: 0;
+    border-radius: 28px;
+    box-shadow: var(--raise);
+}
+
+body.soft #screen { border-radius: 18px; }
+body.soft #screenHint,
+body.soft #screen.nopic::before { color: var(--mu); }
+
+
+/* ---------- Buttons on the pad ---------- */
+body.soft .shoulder,
+body.soft .pill,
+body.soft .dpad button,
+body.soft .act,
+body.soft .l1, body.soft .r1, body.soft .l2, body.soft .r2,
+body.soft .b1, body.soft .b2, body.soft .b3, body.soft .b4 {
+    background: var(--bg);
+    color: var(--tx);
+    border: 0;
+    box-shadow: var(--raise-sm);
+    text-shadow: var(--ts);
+}
+
+body.soft .shoulder { border-radius: 14px; }
+body.soft .btn-up { border-radius: 14px 14px 4px 4px; }
+body.soft .btn-left { border-radius: 14px 4px 4px 14px; }
+body.soft .btn-right { border-radius: 4px 14px 14px 4px; }
+body.soft .btn-down { border-radius: 4px 4px 14px 14px; }
+
+body.soft .dpad { gap: 4px; }
+body.soft .dpad::after {
+    background: var(--bg);
+    box-shadow: var(--inset);
+    border-radius: 6px;
+}
+
+/* over a live picture the buttons are a little see-through, with a dark shadow so they stay visible */
+body.soft .has-screen .shoulder,
+body.soft .has-screen .pill,
+body.soft .has-screen .dpad button,
+body.soft .has-screen .act {
+    background: var(--glass);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* pressed: sinks in and turns blue */
+body.soft .shoulder.touched,
+body.soft .pill.touched,
+body.soft .dpad button.touched,
+body.soft .act.touched {
+    background: var(--bg);
+    color: var(--ac);
+    border: 0;
+    text-shadow: none;
+    box-shadow: var(--inset), 0 0 0 2px rgba(61, 126, 255, 0.45);
+}
+
+/* layout editing */
+body.soft .editing .dpad,
+body.soft .editing .act,
+body.soft .editing .shoulder,
+body.soft .editing .pill { outline: 2px dashed var(--ac); }
+body.soft .editing .selected { outline: 3px solid var(--ac); }
+
+
+/* ---------- Corner buttons and the settings ---------- */
+body.soft #gearBtn,
+body.soft #fsBtn {
+    background: var(--bg);
+    border: 0;
+    color: var(--tx);
+    box-shadow: var(--raise-sm);
+}
+body.soft #gearBtn.open { color: var(--ac); border: 0; }
+
+body.soft #settings {
+    background: var(--bg);
+    border: 0;
+    color: var(--tx);
+    box-shadow: var(--raise);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+body.soft .shead { border-bottom-color: var(--line); }
+body.soft .shead button { background: var(--bg); color: var(--mu); box-shadow: var(--raise-sm); }
+body.soft #settings section { border-bottom-color: var(--line); }
+body.soft #settings h4 { color: var(--mu); }
+body.soft .fl { color: var(--tx); }
+body.soft .fl b { color: var(--ac); }
+body.soft .shint,
+body.soft .kbmap { color: var(--mu); }
+body.soft .kbmap b { color: var(--ac); }
+
+body.soft .seg {
+    background: var(--bg);
+    border: 0;
+    box-shadow: var(--inset);
+}
+body.soft .seg button { background: transparent; color: var(--mu); box-shadow: none; text-shadow: none; }
+body.soft .seg button.on {
+    background: var(--bg);
+    color: var(--ac);
+    box-shadow: var(--raise-sm);
+}
+
+body.soft #settings input[type="range"] {
+    background: linear-gradient(to right, var(--ac) var(--p, 100%), var(--track) var(--p, 100%));
+    box-shadow: var(--inset);
+}
+body.soft #settings input[type="range"]::-webkit-slider-thumb {
+    background: var(--bg);
+    border: 0;
+    box-shadow: var(--raise-sm);
+}
+body.soft #settings input[type="range"]::-moz-range-thumb {
+    background: var(--bg);
+    border: 0;
+    box-shadow: var(--raise-sm);
+}
+
+body.soft #settings .wideBtn {
+    background: var(--bg);
+    border: 0;
+    color: var(--tx);
+    box-shadow: var(--raise-sm);
+}
+body.soft #settings .wideBtn:active { box-shadow: var(--inset); }
+
+/* small keyboard controller in the settings */
+body.soft .mk {
+    background: var(--bg);
+    border: 0;
+    color: var(--tx);
+    box-shadow: var(--raise-sm);
+}
+body.soft .mk i { color: var(--ac); }
+body.soft .mk.on { color: var(--ac); box-shadow: var(--inset), 0 0 0 2px rgba(61, 126, 255, 0.45); }
+body.soft .mk.on i { color: var(--ac); }
+
+/* key letters shown on the buttons (computer) */
+body.soft.kb [data-key]::after { background: rgba(74, 79, 106, 0.85); color: #fff; }
+
+
+/* ---------- Join, lost connection, messages ---------- */
+body.soft #joinBox,
+body.soft #lostBox { background: var(--bg); }
+body.soft #joinBox.closed { background: var(--bg); }
+
+body.soft #joinBox input {
+    background: var(--bg);
+    border: 0;
+    border-radius: 16px;
+    box-shadow: var(--inset);
+    color: var(--tx);
+}
+body.soft #joinBox input::placeholder { color: var(--mu); }
+
+body.soft #joinBox button,
+body.soft #lostBox button {
+    background: var(--ac);
+    color: #fff;
+    box-shadow: var(--raise-sm);
+}
+body.soft #joinBox button:active,
+body.soft #lostBox button:active { box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.25); }
+
+body.soft #joinMsg { color: var(--bad); }
+body.soft #joinBox.closed #joinMsg { color: var(--ac); }
+body.soft #lostBox .big { color: var(--ac); }
+body.soft #lostBox .small { color: var(--mu); }
+
+body.soft #turnToast {
+    background: var(--bg);
+    border: 0;
+    color: var(--ac);
+    box-shadow: var(--raise);
+}
+
+
+/* ---------- Layout editor panel and tool buttons ---------- */
+body.soft #editPanel {
+    background: var(--bg);
+    border: 0;
+    box-shadow: var(--raise);
+    color: var(--tx);
+}
+body.soft #editPanel .hint { color: var(--ac); }
+body.soft #editPanel input[type="range"] { accent-color: var(--ac); }
+
+body.soft .tool {
+    background: var(--bg);
+    border: 0;
+    color: var(--tx);
+    box-shadow: var(--raise-sm);
+}
+body.soft .tool:active { box-shadow: var(--inset); }
+body.soft .tool.primary { background: var(--ac); color: #fff; }
+
+body.soft #rotate { background: var(--bg); color: var(--tx); }
+
+
+/* ---------- Pure full screen stays a plain picture ---------- */
+body.soft.full { background: #000; }
+body.soft.full .controller-container { background: transparent; box-shadow: none; border-radius: 0; }
+body.soft.full #screen { border-radius: 0; }

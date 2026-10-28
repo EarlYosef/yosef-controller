@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Control</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div class="card">
+    <h1>Admin Control</h1>
+
+    <!-- Windows without ViGEmBus: this is the ONLY thing shown -->
+    <div id="gate" hidden>
+        <div class="box gate">
+            <h2>One-time setup needed</h2>
+            <p>To turn your viewers' button presses into a real gamepad in your game, Windows needs a free driver called <b>ViGEmBus</b>. It is not installed on this PC yet.</p>
+            <ol>
+                <li>Click <b>Download ViGEmBus</b> below. It opens the official download page.</li>
+                <li>Download the installer from the latest release and run it. Click <b>Yes</b> when Windows asks for permission, and restart your PC if the installer asks.</li>
+                <li>Come back to this page. It continues by itself as soon as the driver is found.</li>
+            </ol>
+            <div class="row">
+                <a class="btn" id="gateDl" href="#" target="_blank" rel="noopener">Download ViGEmBus</a>
+                <button id="recheck">I installed it, check again</button>
+            </div>
+            <p class="hint">Checking automatically every few seconds...</p>
+        </div>
+    </div>
+
+    <!-- Everything else (shown when the driver is ready) -->
+    <div id="app" hidden>
+    <button id="main" disabled>Connect</button>
+    <div id="msg">Connecting to admin.js...</div>
+
+    <!-- Linux only: small note when the gamepad permission is missing -->
+    <div class="box setup" id="setupBox" hidden>
+        <h3>Setup needed</h3>
+        <p class="hint" id="setupText"></p>
+        <button id="recheckNote">Check again</button>
+    </div>
+
+    <div class="box" id="linkBox" hidden>
+        <h3>Share this link</h3>
+        <div class="row">
+            <input id="link" readonly>
+            <button id="copy">Copy</button>
+        </div>
+        <div id="qr"></div>
+        <p class="hint">Paste the link in your stream chat, or show the QR code. Viewers open it to get the controller.</p>
+    </div>
+
+    <div class="box" id="overlayBox">
+        <h3>OBS overlay</h3>
+        <div class="row">
+            <input id="ovl" readonly>
+            <button id="ovlCopy">Copy</button>
+        </div>
+        <p class="hint">In OBS: Sources, +, Browser, paste this link (1280 x 720). Options to add at the end of the link: ?scale=1.5 (bigger), ?pad=0 (no button display), ?always=1 (button display always visible), ?qr=0 (no QR code), ?next=0 (no waiting list). Join them with &amp;.</p>
+    </div>
+
+    <div id="live" hidden>
+        <!-- Streamer Pause Button -->
+        <div class="box" style="text-align: center;">
+            <button id="pauseBtn" class="pause">⏸ Pause / Freeze Match</button>
+        </div>
+
+        <div class="box">
+            <h3>Players Status</h3>
+            <div class="who">
+                <span id="cur">Nobody is playing</span>
+                <span><button id="skip">Skip</button></span>
+            </div>
+            <div class="who">
+                <span id="p2name">Player 2: nobody</span>
+                <span><button id="curKick">Kick</button><button id="curBan">Ban</button></span>
+            </div>
+            <div class="who" id="p3row">
+                <span id="p3name">Player 3: nobody</span>
+                <span><button id="p3Kick">Kick</button><button id="p3Ban">Ban</button></span>
+            </div>
+            <div id="queue"></div>
+            <p class="hint" id="count"></p>
+            <p class="warn" id="padWarn" hidden>The virtual gamepad (pad.py) is not running. Run admin.js with sudo or fix uinput permission.</p>
+        </div>
+        <div class="box" id="shareBox">
+            <h3>Share my screen</h3>
+            <p class="hint" style="margin-top:0">The players see your game in the middle of their controller with almost no delay. Sound is optional (below). Everyone waiting watches your live stream instead.</p>
+            <div class="row">
+                <select id="shareQ">
+                    <option value="low">Low 480 (lightest)</option>
+                    <option value="med" selected>Medium 720 (recommended)</option>
+                    <option value="high">High 1280</option>
+                    <option value="ultra">Ultra 1380</option>
+                    <option value="highest">Highest 1920 (strong PC only)</option>
+                </select>
+                <button id="shareBtn">Share my screen</button>
+            </div>
+            <div class="snd">
+                <label><input type="checkbox" id="shareSound"> Send game sound to the players</label>
+                <div class="row" style="margin-top:8px">
+                    <select id="soundQ">
+                        <option value="8">Sound quality: Normal (0.5 Mbps each)</option>
+                        <option value="16">Sound quality: High, no hiss (1 Mbps each)</option>
+                    </select>
+                </div>
+                <label style="display:block;margin-top:8px"><input type="checkbox" id="soundLocal"> Also play the sent sound on this computer (only if you cannot hear your game; use headphones)</label>
+                <div class="row" style="margin-top:8px">
+                    <select id="soundSrc"><option value="screen">Sound from the screen share</option></select>
+                    <button id="findSound">Find sound sources</button>
+                </div>
+                <div class="meter"><div id="soundBar"></div></div>
+                <p class="hint" id="soundInfo"></p>
+            </div>
+            <p class="hint" id="shareInfo"></p>
+            <p class="hint" id="shareServer"></p>
+            <img id="sharePreview" alt="" hidden>
+        </div>
+        <div class="box" id="blockedBox" hidden>
+            <h3>Blocked players</h3>
+            <div id="blocked"></div>
+            <button id="unbanAll">Unblock all</button>
+        </div>
+        <div class="box">
+            <h3>Options</h3>
+            <div class="opts">
+                <label>Match Mode
+                    <select id="gameMode">
+                        <option value="vvw">Viewer vs Viewer (2P)</option>
+                        <option value="svv">Streamer vs Viewer (1P)</option>
+                    </select>
+                </label>
+                <label><input type="checkbox" id="locked"> Lock (no new players)</label>
+                <label><input type="checkbox" id="frozen"> Freeze all input</label>
+                <label class="wide"><input type="checkbox" id="spectate"> Waiting viewers can watch the match</label>
+                <label>Join code <input type="text" id="code" maxlength="20" placeholder="none"></label>
+                <label>Max players
+                    <select id="max">
+                        <option value="5">5 players</option>
+                        <option value="10">10 players</option>
+                        <option value="0">Unlimited</option>
+                    </select>
+                </label>
+                <label>Turn time
+                    <select id="turn">
+                        <option value="60">1 minute</option>
+                        <option value="180">3 minutes</option>
+                        <option value="300">5 minutes</option>
+                        <option value="600">10 minutes</option>
+                        <option value="0">Unlimited</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+    </div>
+    </div><!-- /app -->
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ws, status = 'offline', link = '', qrLink = '', curId = null, curId3 = null;
+
+function connectPanel() {
+    ws = new WebSocket(`ws://${location.host}`);
+    ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'panel') render(m); };
+    ws.onclose = () => {
+        $('gate').hidden = true;
+        $('app').hidden = false;
+        $('main').disabled = true;
+        showMsg('Lost connection to admin.js. Is it still running?', true);
+        setTimeout(connectPanel, 2000);
+    };
+}
+const send = (o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
+
+function renderDriver(d) {
+    const needDriver = !!(d && !d.ok && d.platform === 'win32');   
+    const note = !!(d && !d.ok && d.platform !== 'win32');         
+    $('gate').hidden = !needDriver;
+    $('app').hidden = needDriver;
+    $('setupBox').hidden = !note;
+    if (needDriver) $('gateDl').href = d.url;
+    if (note) $('setupText').textContent = d.hint;
+}
+
+function showMsg(text, err) { $('msg').textContent = text; $('msg').className = err ? 'err' : ''; }
+
+function render(m) {
+    status = m.status; link = m.link;
+    if (m.status !== 'online' && share) stopShare('Stopped: the controller was closed.');
+    renderDriver(m.driver);
+    const b = $('main');
+    b.className = status === 'online' ? 'off' : '';
+    b.textContent = { offline: 'Connect', starting: 'Connecting...', online: 'Disconnect', stopping: 'Disconnecting...' }[status];
+    b.disabled = status === 'starting' || status === 'stopping';
+    showMsg(m.message, status === 'offline' && /not|stopp|took|Port|in use/i.test(m.message));
+
+    $('linkBox').hidden = !(status === 'online' && link);$('link').value = link;
+    if (link !== qrLink) {                       
+        qrLink = link;
+        $('qr').textContent = '';
+        if (link && window.QRCode) {
+            new QRCode($('qr'), { text: link, width: 150, height: 150, correctLevel: QRCode.CorrectLevel.M });
+        }
+    }
+    $('live').hidden = status !== 'online';
+
+    const s = m.settings;
+    $('locked').checked = s.locked; $('frozen').checked = s.frozen; $('spectate').checked = s.spectate !== false;
+    if (document.activeElement !== $('gameMode'))$('gameMode').value = s.mode || 'vvw';
+    
+    if (s.frozen) {
+        $('pauseBtn').classList.add('active');$('pauseBtn').style.background = '#ef4444';
+        $('pauseBtn').textContent = '▶ Resume Match';
+    } else {
+        $('pauseBtn').classList.remove('active');$('pauseBtn').style.background = '#eab308';
+        $('pauseBtn').textContent = '⏸ Pause / Freeze Match';
+    }
+
+    if (document.activeElement !== $('code'))$('code').value = s.code;
+    if (document.activeElement !== $('turn'))$('turn').value = s.turnSeconds;
+    if (document.activeElement !== $('max'))$('max').value = s.maxPlayers;
+
+    const st = m.state;
+    if (!st) return;
+    $('shareServer').textContent = share ? (st.sharing ? 'The controller server is receiving your screen ✓' : 'The controller server is NOT receiving your screen yet') : '';
+    $('cur').textContent = st.current
+        ? `Match: ${st.current.name}` + (st.current.secondsLeft != null ? ` (${st.current.secondsLeft}s left)` : '')
+        : 'Waiting for players';
+    
+    const requiredQueue = (s.mode === 'svv') ? 1 : 2;
+    $('skip').disabled = st.queue.length < requiredQueue;
+    curId = st.p2 ? st.p2.id : null;
+    curId3 = st.p3 ? st.p3.id : null;
+    const inputNote = (p) => !p ? '' : p.idle === null ? ' · no button pressed yet'
+        : p.idle < 3 ? ' · buttons arriving ✓' : ` · last button ${p.idle}s ago`;
+    $('p2name').textContent = 'Player 2: ' + (st.p2 ? st.p2.name + inputNote(st.p2) : 'nobody');
+    $('p3name').textContent = 'Player 3: ' + (st.p3 ? st.p3.name + inputNote(st.p3) : 'nobody');
+    $('p3row').hidden = s.mode === 'svv';
+    $('curKick').disabled = $('curBan').disabled = curId === null;
+    $('p3Kick').disabled = $('p3Ban').disabled = curId3 === null;
+
+    const bl = $('blocked'); bl.textContent = '';
+    st.banned.forEach((p) => {
+        const row = document.createElement('div');
+        const name = document.createElement('span'); name.textContent = p.name;
+        const un = document.createElement('button'); un.textContent = 'Unblock';
+        un.onclick = () => send({ cmd: 'unban', ip: p.ip });
+        row.append(name, un); bl.append(row);
+    });
+    $('blockedBox').hidden = !st.banned.length;
+    const limit = s.maxPlayers ? ` / ${s.maxPlayers}` : '';
+    $('count').textContent = `${st.players}${limit} joined${st.full ? ' (FULL, auto-locked)' : ''}, ${st.queue.length} waiting, ${st.spectating || 0} watching, ${st.connected} connected`;
+    $('padWarn').hidden = st.padOk;
+
+    const q = $('queue'); q.textContent = '';
+    st.queue.forEach((p, i) => {
+        const row = document.createElement('div');
+        const name = document.createElement('span'); name.textContent = `${i + 1}. ${p.name}`;
+        const kick = document.createElement('button'); kick.textContent = 'Kick';
+        kick.onclick = () => send({ cmd: 'kick', id: p.id });
+        const ban = document.createElement('button'); ban.textContent = 'Ban';
+        ban.onclick = () => send({ cmd: 'kick', id: p.id, ban: true });
+        const act = document.createElement('span'); act.append(kick, ban);
+        row.append(name, act); q.append(row);
+    });
+}
+
+$('main').onclick = () => send({ cmd: status === 'online' ? 'disconnect' : 'connect' });
+$('skip').onclick = () => send({ cmd: 'skip' });$('curKick').onclick = () => { if (curId !== null) send({ cmd: 'kick', id: curId }); };
+$('curBan').onclick = () => { if (curId !== null) send({ cmd: 'kick', id: curId, ban: true }); };
+$('p3Kick').onclick = () => { if (curId3 !== null) send({ cmd: 'kick', id: curId3 }); };
+$('p3Ban').onclick = () => { if (curId3 !== null) send({ cmd: 'kick', id: curId3, ban: true }); };$('unbanAll').onclick = () => send({ cmd: 'unban' });
+
+$('pauseBtn').onclick = () => {
+    const isFrozen = $('frozen').checked;
+    $('frozen').checked = !isFrozen;
+    sendSettings();
+};
+
+$('ovl').value = `${location.origin}/overlay.html`;
+$('ovlCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('ovl').value); }
+    catch (e) { $('ovl').select(); document.execCommand('copy'); }
+    $('ovlCopy').textContent = 'Copied!';
+    setTimeout(() => { $('ovlCopy').textContent = 'Copy'; }, 1500);
+};
+$('ovl').onclick = () => $('ovl').select();
+$('recheck').onclick = () => send({ cmd: 'recheck' });
+$('recheckNote').onclick = () => send({ cmd: 'recheck' });
+
+$('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(link); }
+    catch (e) { $('link').select(); document.execCommand('copy'); }
+    $('copy').textContent = 'Copied!';
+    setTimeout(() => { $('copy').textContent = 'Copy'; }, 1500);
+};
+$('link').onclick = () => $('link').select();
+
+function sendSettings() {
+    send({ cmd: 'settings', settings: {
+        locked: $('locked').checked, frozen: $('frozen').checked, spectate: $('spectate').checked,
+        code: $('code').value, turnSeconds: Number($('turn').value) || 0,
+        maxPlayers: Number($('max').value) || 0,
+        mode: $('gameMode').value
+    }});
+}
+['locked', 'frozen', 'code', 'turn', 'max', 'gameMode'].forEach(id => $(id).addEventListener('change', sendSettings));
+
+// ---------- Share my screen ----------
+const QUALITY = {
+    low:     { w: 480,  q: 0.5,  fps: 30 },
+    med:     { w: 720,  q: 0.65, fps: 30 },
+    high:    { w: 1280, q: 0.72, fps: 30 },
+    ultra:   { w: 1380, q: 0.74, fps: 60 },
+    highest: { w: 1920, q: 0.78, fps: 60 }
+};
+let share = null;   
+
+function workerMain() {
+    let ws, canvas, ctx, opts, busy = false, last = 0, sent = 0, bytes = 0, lastPreview = 0;
+    let level = 1, good = 0, idle = false, srvDrop = 0, srvRtt = 0, encAvg = 0;
+    let srvSpec = 0, lastSpec = 0, busy2 = false, canvas2, ctx2, sentSpec = 0;   // the small picture for people watching from the waiting line
+    // level 1 = full quality. It drops by itself when the network is slow OR this computer cannot keep up,
+    // and climbs back when there is room. That is what stops the delay from building up.
+    onmessage = async (e) => {
+        const d = e.data;
+        if (d.cmd === 'stop') { try { ws.close(); } catch (x) {} close(); return; }
+        opts = d;
+        ws = new WebSocket(d.url);
+        ws.onclose = () => postMessage({ closed: true });
+        ws.onmessage = (m) => {
+            if (typeof m.data !== 'string') return;
+            let s; try { s = JSON.parse(m.data).stats; } catch (x) { return; }
+            if (!s) return;
+            idle = !!s.rtc;   // the fast video link is working: no need to make pictures
+            const total = s.sent + s.dropped;
+            srvDrop = total >= 5 ? s.dropped / total : 0;
+            srvRtt = s.rtt || 0;
+            srvSpec = s.spec || 0;
+        };
+        await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; })
+            .catch(() => postMessage({ closed: true, error: 'Could not reach the controller server. Is it connected?' }));
+        if (ws.readyState !== 1) return;
+        setInterval(() => {
+            const fpsNow = Math.max(15, opts.fps * (0.5 + 0.5 * level));
+            const budget = 1000 / fpsNow;
+            const slowNet = srvDrop > 0.25 || srvRtt > 350;
+            const slowPc = encAvg > budget * 0.85;
+            if (slowNet || slowPc) { level = Math.max(0, level - (slowNet ? 0.15 : 0.1)); good = 0; }
+            else if (srvDrop < 0.05 && srvRtt < 200 && encAvg < budget * 0.5) { if (++good >= 5) { level = Math.min(1, level + 0.1); good = 0; } }
+            else good = 0;
+            postMessage({ fps: sent, kbps: Math.round(bytes / 1024), scale: 0.4 + 0.6 * level, rtt: Math.round(srvRtt), enc: Math.round(encAvg), spec: srvSpec, small: sentSpec });
+            sent = 0; bytes = 0; sentSpec = 0;
+        }, 1000);
+        const reader = d.readable.getReader();
+        for (;;) {
+            const r = await reader.read();
+            if (r.done) break;
+            const frame = r.value;
+            try {
+                const now = performance.now();
+                const fpsNow = Math.max(15, opts.fps * (0.5 + 0.5 * level));
+                if (!idle && now - last >= 1000 / fpsNow && !busy && ws.bufferedAmount < 100000) {
+                    last = now; busy = true;
+                    const w = Math.round(opts.w * (0.4 + 0.6 * level) / 2) * 2, h = Math.round(w * frame.displayHeight / frame.displayWidth);
+                    if (!canvas || canvas.width !== w || canvas.height !== h) { canvas = new OffscreenCanvas(w, h); ctx = canvas.getContext('2d'); ctx.imageSmoothingQuality = 'high'; }
+                    ctx.drawImage(frame, 0, 0, w, h);
+                    canvas.convertToBlob({ type: 'image/jpeg', quality: opts.q * (0.75 + 0.25 * level) })
+                        .then((b) => {
+                            const ms = performance.now() - now;   // how long this computer needed to make the picture
+                            encAvg = encAvg ? encAvg * 0.8 + ms * 0.2 : ms;
+                            if (ws.readyState === 1) { ws.send(b); sent++; bytes += b.size; }
+                            if (now - lastPreview > 1500) { lastPreview = now; postMessage({ preview: b }); }
+                            busy = false;
+                        })
+                        .catch(() => { busy = false; });
+                }
+                // a small, light picture for the viewers watching from the waiting line (only made when someone is watching)
+                if (srvSpec > 0 && now - lastSpec >= 100 && !busy2 && ws.bufferedAmount < 100000) {
+                    lastSpec = now; busy2 = true;
+                    const sw = 480, sh = Math.round(sw * frame.displayHeight / frame.displayWidth);
+                    if (!canvas2 || canvas2.height !== sh) { canvas2 = new OffscreenCanvas(sw, sh); ctx2 = canvas2.getContext('2d'); ctx2.imageSmoothingQuality = 'high'; }
+                    ctx2.drawImage(frame, 0, 0, sw, sh);
+                    canvas2.convertToBlob({ type: 'image/jpeg', quality: 0.5 })
+                        .then((b) => { if (ws.readyState === 1) { ws.send(new Blob([new Uint8Array([1]), b])); sentSpec++; } busy2 = false; })
+                        .catch(() => { busy2 = false; });
+                }
+            } finally { frame.close(); }
+        }
+    };
+}
+
+let sigWs = null, pc = null, rtcNote = '';
+let rtcTarget = { h: 720, bitrate: 3000000, fps: 30 };   // set from the chosen quality when sharing starts
+const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+function closePc() {
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    rtcNote = '';
+}
+
+async function offerToPlayer() {
+    if (!share || !sigWs || sigWs.readyState !== 1) return;
+    closePc();
+    const conn = new RTCPeerConnection(RTC_CONFIG);
+    pc = conn;
+    const track = share.stream.getVideoTracks()[0];
+    try { track.contentHint = 'motion'; } catch (e) {}
+    const sender = conn.addTrack(track, share.stream);
+    conn.onicecandidate = (e) => {
+        if (e.candidate && sigWs && sigWs.readyState === 1) sigWs.send(JSON.stringify({ rtc: 'ice', candidate: e.candidate }));
+    };
+    conn.onconnectionstatechange = () => {
+        if (conn !== pc) return;
+        rtcNote = conn.connectionState === 'connected' ? ' Fast video link is ON.'
+            : conn.connectionState === 'failed' ? ' Fast link could not connect.' : '';
+    };
+    const offer = await conn.createOffer();
+    await conn.setLocalDescription(offer);
+    sigWs.send(JSON.stringify({ rtc: 'offer', sdp: conn.localDescription.sdp }));
+    try {   
+        const p = sender.getParameters();
+        if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+        const h = track.getSettings().height || 1080;
+        p.encodings[0].maxBitrate = rtcTarget.bitrate;
+        p.encodings[0].scaleResolutionDownBy = Math.max(1, h / rtcTarget.h);
+        p.encodings[0].maxFramerate = rtcTarget.fps;
+        p.degradationPreference = 'maintain-framerate';
+        await sender.setParameters(p);
+    } catch (e) {}
+}
+
+function startSignaling() {
+    if (!window.RTCPeerConnection) return;
+    sigWs = new WebSocket('ws://127.0.0.1:3001/?signal=1');
+    sigWs.onmessage = (e) => {
+        let m; try { m = JSON.parse(e.data); } catch (x) { return; }
+        if (m.rtc === 'newplayer') offerToPlayer().catch(() => {});
+        else if (m.rtc === 'answer' && pc) pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }).catch(() => {});
+        else if (m.rtc === 'ice' && pc && m.candidate) pc.addIceCandidate(m.candidate).catch(() => {});
+    };
+}
+
+// ---------- Game sound (sent to the players) ----------
+// Two places the sound can come from:
+//   1) the screen share itself (Windows: choose "Entire screen" and tick "Share system audio")
+//   2) a sound input from the list: on Linux "Monitor of ..." carries what the computer plays; on Windows "Stereo Mix"
+const AUDIO_WORKLET_CODE = `
+class Cap extends AudioWorkletProcessor {
+    constructor() { super(); this.l = []; this.r = []; this.n = 0; }
+    process(inputs) {
+        const i = inputs[0];
+        if (i && i[0]) {
+            this.l.push(new Float32Array(i[0])); this.r.push(new Float32Array(i[1] || i[0])); this.n += i[0].length;
+            if (this.n >= 640) {   // about 20 ms at 32000 Hz
+                const L = new Float32Array(this.n), R = new Float32Array(this.n); let o = 0;
+                for (let k = 0; k < this.l.length; k++) { L.set(this.l[k], o); R.set(this.r[k], o); o += this.l[k].length; }
+                this.port.postMessage({ l: L, r: R }, [L.buffer, R.buffer]);
+                this.l = []; this.r = []; this.n = 0;
+            }
+        }
+        return true;
+    }
+}
+registerProcessor('cap', Cap);
+`;
+
+function toMulaw(x) {   // a sound value from -1 to 1 becomes one byte
+    let s = Math.max(-1, Math.min(1, x)) * 32767 | 0;
+    const sign = s < 0 ? 0x80 : 0;
+    if (s < 0) s = -s;
+    if (s > 32635) s = 32635;
+    s += 0x84;
+    let exp = 7;
+    for (let mask = 0x4000; (s & mask) === 0 && exp > 0; exp--, mask >>= 1) {}
+    return (~(sign | (exp << 4) | ((s >> (exp + 3)) & 0x0F))) & 0xFF;
+}
+
+function setSoundInfo(t, bad) {
+    $('soundInfo').textContent = t;
+    $('soundInfo').style.color = bad ? '#ff6b6b' : '';
+}
+
+async function findSoundSources() {
+    try {
+        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });   // only to unlock the device names
+        tmp.getTracks().forEach((t) => t.stop());
+        const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput');
+        const sel = $('soundSrc');
+        sel.textContent = '';
+        const first = document.createElement('option');
+        first.value = 'screen'; first.textContent = 'Sound from the screen share';
+        sel.append(first);
+        devs.forEach((d) => {
+            const o = document.createElement('option');
+            o.value = d.deviceId; o.textContent = d.label || 'Sound input';
+            sel.append(o);
+        });
+        const monitor = devs.find((d) => /monitor/i.test(d.label));   // Linux: carries what the computer is playing
+        if (monitor) sel.value = monitor.deviceId;
+        setSoundInfo(`${devs.length} sound inputs found.` + (monitor ? ' Selected "' + monitor.label + '", which is what your computer plays.' : ' Pick the one that carries your game sound.'));
+    } catch (e) {
+        setSoundInfo('Could not list the sound inputs: ' + e.message, true);
+    }
+}
+
+async function startSound(displayStream) {
+    if (!$('shareSound').checked) return;
+    let track = null;
+    if ($('soundSrc').value === 'screen') {
+        track = displayStream.getAudioTracks()[0] || null;
+        if (!track) {
+            setSoundInfo('No sound came with the screen share. Windows: choose "Entire screen" and tick "Share system audio". Linux or Mac: press "Find sound sources" and pick one from the list instead.', true);
+            return;
+        }
+    } else {
+        try {
+            const st = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: $('soundSrc').value }, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2 } });
+            track = st.getAudioTracks()[0];
+            if (share) share.soundStream = st;
+        } catch (e) {
+            setSoundInfo('Could not open that sound source: ' + e.message, true);
+            return;
+        }
+    }
+    try {
+        const ac = new AudioContext({ sampleRate: 32000 });
+        await ac.audioWorklet.addModule(URL.createObjectURL(new Blob([AUDIO_WORKLET_CODE], { type: 'text/javascript' })));
+        const src = ac.createMediaStreamSource(new MediaStream([track]));
+        const node = new AudioWorkletNode(ac, 'cap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+        const quiet = ac.createGain();
+        quiet.gain.value = 0;   // this part plays nothing: the sound only goes to the players
+        src.connect(node); node.connect(quiet); quiet.connect(ac.destination);
+        // optional: also hear the sent sound here. Off by default, because your game already plays on your speakers.
+        const local = ac.createGain();
+        local.gain.value = $('soundLocal').checked ? 1 : 0;
+        src.connect(local); local.connect(ac.destination);
+        $('soundLocal').onchange = () => { local.gain.value = $('soundLocal').checked ? 1 : 0; };
+        const hi = $('soundQ').value === '16';
+        const ws2 = new WebSocket('ws://127.0.0.1:3001/?audio=1');
+        let level = 0;
+        node.port.onmessage = (e) => {
+            if (ws2.readyState !== 1 || ws2.bufferedAmount > 200000) return;
+            const l = e.data.l, r = e.data.r, n = l.length;
+            let out, peak = 0;
+            if (hi) {   // 16-bit: the number 3 marks the packet
+                out = new Uint8Array(1 + 4 * n);
+                out[0] = 3;
+                const dv = new DataView(out.buffer);
+                for (let i = 0; i < n; i++) {
+                    dv.setInt16(1 + 4 * i, Math.max(-1, Math.min(1, l[i])) * 32767, true);
+                    dv.setInt16(3 + 4 * i, Math.max(-1, Math.min(1, r[i])) * 32767, true);
+                    if (Math.abs(l[i]) > peak) peak = Math.abs(l[i]);
+                }
+            } else {    // 8-bit: the number 2 marks the packet
+                out = new Uint8Array(1 + 2 * n);
+                out[0] = 2;
+                for (let i = 0; i < n; i++) {
+                    out[1 + 2 * i] = toMulaw(l[i]);
+                    out[2 + 2 * i] = toMulaw(r[i]);
+                    if (Math.abs(l[i]) > peak) peak = Math.abs(l[i]);
+                }
+            }
+            level = Math.max(peak, level * 0.9);
+            $('soundBar').style.width = Math.min(100, Math.round(level * 140)) + '%';
+            ws2.send(out);
+        };
+        ws2.onclose = () => { if (share && share.snd && share.snd.ws === ws2) setSoundInfo('Lost the connection for the sound.', true); };
+        if (!share) { ac.close(); ws2.close(); return; }
+        share.snd = { ac, ws: ws2 };
+        setSoundInfo('Sending game sound to the players (about ' + (hi ? '1' : '0.5') + ' Mbps each). The green bar should move when the game makes noise.');
+    } catch (e) {
+        setSoundInfo('Could not start the sound: ' + e.message, true);
+    }
+}
+
+function setShareInfo(t, bad) {
+    $('shareInfo').textContent = t;
+    $('shareInfo').style.color = bad ? '#ff6b6b' : '';
+}
+
+function feedReady() {
+    return new Promise((resolve) => {
+        let done = false;
+        const finish = (ok) => { if (!done) { done = true; resolve(ok); } };
+        try {
+            const t = new WebSocket('ws://127.0.0.1:3001');
+            t.onopen = () => { t.close(); finish(true); };
+            t.onerror = () => finish(false);
+            setTimeout(() => finish(false), 3000);
+        } catch (e) { finish(false); }
+    });
+}
+
+function keepAwake() {   
+    try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ac.createOscillator(), g = ac.createGain();
+        g.gain.value = 0.001; o.frequency.value = 30;
+        o.connect(g); g.connect(ac.destination); o.start();
+        share.audio = ac;
+    } catch (e) {}
+}
+
+function fallbackShare(Q) {
+    const video = document.createElement('video');
+    video.muted = true; video.srcObject = share.stream; video.play();
+    const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    const ws = new WebSocket('ws://127.0.0.1:3001');
+    share.ws = ws;
+    ws.onclose = () => stopShare('Lost connection to the controller server.', true);
+    let busy = false;
+    share.timer = setInterval(() => {
+        if (ws.readyState !== 1 || busy || ws.bufferedAmount > 400000 || !video.videoWidth) return;
+        canvas.width = Q.w; canvas.height = Math.round(Q.w * video.videoHeight / video.videoWidth);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        busy = true;
+        canvas.toBlob((b) => { if (b && ws.readyState === 1) ws.send(b); busy = false; }, 'image/jpeg', Q.q);
+    }, 1000 / Q.fps);
+    setShareInfo('Sharing active.');
+}
+
+async function startShare() {
+    if (share) return;
+    const Q = QUALITY[$('shareQ').value];
+    rtcTarget = { h: Math.round(Q.w * 9 / 16), bitrate: Q.w <= 720 ? 2500000 : Q.w <= 1380 ? 4000000 : 6000000, fps: Math.min(Q.fps, 30) };
+    setShareInfo('Checking the controller server...');
+    if (!(await feedReady())) {
+        setShareInfo('Controller server not ready on port 3001.', true);
+        return;
+    }
+    let stream;
+    const wantScreenSound = $('shareSound').checked && $('soundSrc').value === 'screen';
+    try { stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 60, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: wantScreenSound ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false } : false, systemAudio: 'include', suppressLocalAudioPlayback: false }); }
+    catch (e) { setShareInfo('Sharing was cancelled.'); return; }
+    const track = stream.getVideoTracks()[0];
+    share = { stream };
+    track.addEventListener('ended', () => stopShare('Sharing ended.'));   
+    keepAwake();
+    startSound(stream);
+    if (window.MediaStreamTrackProcessor && window.Worker) {
+        const worker = new Worker(URL.createObjectURL(new Blob(['(' + workerMain.toString() + ')()'], { type: 'text/javascript' })));
+        const processor = new MediaStreamTrackProcessor({ track });
+        worker.onmessage = (e) => {
+            if (!share) return;
+            if (e.data.preview) {            
+                const img = $('sharePreview'), old = img.src;
+                img.src = URL.createObjectURL(e.data.preview);
+                img.hidden = false;
+                if (old.startsWith('blob:')) URL.revokeObjectURL(old);
+                return;
+            }
+            if (e.data.closed) { stopShare(e.data.error || 'Lost connection.', true); return; }
+            setShareInfo(`Sharing: ${e.data.fps} pictures/sec, ${(e.data.kbps * 8 / 1000).toFixed(1)} Mbps. Quality ${Math.round(e.data.scale * 100)}% (adjusts by itself). Link delay about ${e.data.rtt} ms, this computer needs ${e.data.enc} ms per picture. Watching from the waiting line: ${e.data.spec}${e.data.spec ? ` (${e.data.small} small pictures/sec)` : ''}.${rtcNote}`);
+        };
+        worker.postMessage({ url: 'ws://127.0.0.1:3001', w: Q.w, q: Q.q, fps: Q.fps, readable: processor.readable }, [processor.readable]);
+        share.worker = worker;
+        setShareInfo('Starting...');
+    } else {
+        fallbackShare(Q);
+    }
+    startSignaling();
+    $('shareBtn').textContent = 'Stop sharing';
+}
+
+function stopShare(note, bad) {
+    if (!share) return;
+    const s = share; share = null;
+    try { if (s.worker) { s.worker.postMessage({ cmd: 'stop' }); setTimeout(() => s.worker.terminate(), 300); } } catch (e) {}
+    try { if (s.ws) s.ws.close(); } catch (e) {}
+    try { if (sigWs) sigWs.close(); } catch (e) {}
+    sigWs = null;
+    closePc();
+    clearInterval(s.timer);
+    try { s.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    try { if (s.audio) s.audio.close(); } catch (e) {}
+    try { if (s.snd) { s.snd.ws.close(); s.snd.ac.close(); } } catch (e) {}
+    try { if (s.soundStream) s.soundStream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    $('soundBar').style.width = '0%';
+    $('shareBtn').textContent = 'Share my screen';
+    $('sharePreview').hidden = true;
+    $('shareServer').textContent = '';
+    setShareInfo(note || '', bad);
+}
+
+$('findSound').onclick = findSoundSources;
+$('shareBtn').onclick = () => (share ? stopShare('Stopped sharing.') : startShare());
+
+connectPanel();
+</script>
+</body>
+</html>

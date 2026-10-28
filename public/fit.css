@@ -1,0 +1,99 @@
+/* =====================================================
+   FIT: button sizes follow the controller box, so
+   nothing overlaps on short screens (iPhone Safari)
+   and nothing looks tiny on roomy ones (Android).
+   Loaded after style.css, so it wins.
+   ===================================================== */
+
+:root {
+    --fit: 1.1;           /* Android and others: a little bigger */
+}
+
+/* iPhone / iPad (Safari and Chrome on iOS): a little smaller, more space between buttons */
+@supports (-webkit-touch-callout: none) {
+    :root {
+        --fit: 0.95;
+    }
+}
+
+.controller-container {
+    container-type: size;
+}
+
+/* Browsers without container units keep the old sizes from style.css */
+@supports (width: 1cqw) {
+    .shoulder,
+    .pill,
+    .dpad,
+    .act {
+        --sz: clamp(26px, min(7.4cqw, 21.5cqh * var(--fit)), 90px) * var(--k, 1);
+    }
+}
+
+
+/* =====================================================
+   GAME SCREEN: the streamer's live stream sits behind the
+   buttons (like PPSSPP). Touches go straight through it.
+   The Screen button on the phone picks the size:
+     Fill = covers the whole controller (some top/bottom is cropped)
+     Wide = in between
+     Fit  = whole picture, black bars at the sides
+   ===================================================== */
+.topbar {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+}
+
+.topbar .tool {
+    white-space: nowrap;
+}
+
+#screen {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    transform: translateX(-50%);
+    background: #000;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Browsers with container units: size from the controller box, centred both ways */
+@supports (width: 1cqw) {
+    #screen {
+        top: 50%;
+        bottom: auto;
+        height: auto;
+        width: calc(var(--screen-w, max(100cqw, 177.78cqh)) * var(--sw, 1));
+        transform: translate(-50%, -50%);
+    }
+    .screen-fit  { --screen-w: 177.78cqh; }
+    .screen-wide { --screen-w: calc((max(100cqw, 177.78cqh) + 177.78cqh) / 2); }
+    .screen-fill { --screen-w: max(100cqw, 177.78cqh); }
+}
+
+#screen:empty {
+    display: none;
+}
+
+#screen iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+/* Button see-through-ness is set by the Button opacity slider in the settings (gear) */
+
+#screen.off {
+    display: none;
+}
+
+#screen img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}

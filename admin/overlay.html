@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream Overlay</title>
+<link rel="stylesheet" href="overlay.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div id="wrap">
+
+    <div class="panel" id="now">
+        <div class="lbl">Now playing</div>
+        <div id="name">Controller offline</div>
+        <div id="time"></div>
+    </div>
+
+    <div class="panel" id="next" hidden>
+        <div class="lbl">Up next</div>
+        <ol id="list"></ol>
+    </div>
+
+    <div class="panel" id="pad">
+        <div class="dpad">
+            <i></i><b data-b="UP">▲</b><i></i>
+            <b data-b="LEFT">◀</b><i></i><b data-b="RIGHT">▶</b>
+            <i></i><b data-b="DOWN">▼</b><i></i>
+        </div>
+        <div class="mid">
+            <b data-b="L2">L2</b><b data-b="L1">L1</b><b data-b="R1">R1</b><b data-b="R2">R2</b>
+            <b data-b="SELECT">SEL</b><b data-b="START">STA</b>
+        </div>
+        <div class="face">
+            <b data-b="1">X</b><b data-b="2">Y</b>
+            <b data-b="3">A</b><b data-b="4">B</b>
+        </div>
+    </div>
+
+    <div class="panel" id="join" hidden>
+        <div id="qr"></div>
+        <div class="lbl">Scan to play</div>
+    </div>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const opts = new URLSearchParams(location.search);
+const show = { pad: opts.get('pad') !== '0', qr: opts.get('qr') !== '0', next: opts.get('next') !== '0' };
+let qrLink = '';
+
+$('pad').hidden = !show.pad;
+const always = opts.get('always') === '1';         // ?always=1 keeps the button display visible all the time
+const scale = Number(opts.get('scale'));           // ?scale=1.5 makes the whole overlay bigger
+if (scale > 0.3 && scale < 4) document.body.style.zoom = scale;
+
+function fmt(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function render(m) {
+    const online = m.status === 'online';
+    const st = m.state;
+
+    // who is playing
+    if (!online) {
+        $('name').textContent = 'Controller offline';
+        $('time').textContent = '';
+    } else if (st && st.current) {
+        $('name').textContent = st.current.name;
+        $('time').textContent = st.current.secondsLeft != null ? fmt(st.current.secondsLeft) : '';
+    } else {
+        $('name').textContent = 'Waiting for a player';
+        $('time').textContent = '';
+    }
+
+    // the on-screen controller appears when someone is playing and fades away when nobody is
+    $('pad').classList.toggle('live', always || !!(online && st && st.current));
+
+    // waiting list (first 5)
+    const queue = online && st ? st.queue.slice(0, 5) : [];
+    $('next').hidden = !show.next || queue.length === 0;
+    const list = $('list'); list.textContent = '';
+    queue.forEach((p) => {
+        const li = document.createElement('li');
+        li.textContent = p.name;
+        list.append(li);
+    });
+
+    // QR code to join
+    const link = online ? m.link : '';
+    $('join').hidden = !show.qr || !link;
+    if (link !== qrLink) {
+        qrLink = link;
+        $('qr').textContent = '';
+        if (link && window.QRCode) new QRCode($('qr'), { text: link, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
+    }
+}
+
+function connect() {
+    const ws = new WebSocket(`ws://${location.host}`);
+    ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === 'panel') render(m);
+        else if (m.type === 'input') {
+            const el = document.querySelector(`[data-b="${m.button}"]`);
+            if (el) el.classList.toggle('on', m.action === 'PRESS');
+        }
+    };
+    ws.onclose = () => setTimeout(connect, 2000);   // keep trying; OBS may load this before admin.js is ready
+}
+connect();
+</script>
+</body>
+</html>

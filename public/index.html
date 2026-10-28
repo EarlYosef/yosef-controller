@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1b1c21">
+    <title>Yosef - Player 2 Control</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="fit.css">
+    <link rel="stylesheet" href="soft.css">
+    <style>
+        #joinBox {
+            position: fixed; inset: 0; z-index: 50;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+            background: rgba(0, 0, 0, 0.85); padding: 20px;
+        }
+        #joinBox input {
+            width: min(260px, 80vw); padding: 10px; border-radius: 8px; border: 2px solid #fff;
+            background: #000; color: #fff; font-size: 16px; text-align: center;
+        }
+        #joinBox button {
+            width: min(260px, 80vw); padding: 12px; border: 0; border-radius: 999px;
+            background: #ffd700; color: #000; font-size: 16px; font-weight: 800; touch-action: manipulation;
+        }
+        #lostBox {
+            position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.92);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px;
+        }
+        #lostBox .big { margin: 0; font-size: 22px; font-weight: 800; color: #ffd700; }
+        #lostBox .small { margin: 0; font-size: 13px; color: #bbb; }
+        #lostBox button {
+            width: min(260px, 80vw); padding: 12px; border: 0; border-radius: 999px;
+            background: #ffd700; color: #000; font-size: 16px; font-weight: 800; touch-action: manipulation;
+        }
+        /* ===== Settings: clean, flat panel ===== */
+        #gearBtn {
+            position: fixed; z-index: 46;
+            top: max(6px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right));
+            width: 40px; height: 40px; padding: 0; border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(16, 16, 18, 0.92);
+            color: #fff; font-size: 21px; line-height: 1; touch-action: manipulation;
+            transition: transform 0.25s, border-color 0.15s, color 0.15s;
+        }
+        #gearBtn.open { transform: rotate(60deg); border-color: #f2c94c; color: #f2c94c; }
+        #fsBtn {
+            position: fixed; z-index: 46;
+            top: max(6px, env(safe-area-inset-top)); right: calc(max(10px, env(safe-area-inset-right)) + 48px);
+            width: 40px; height: 40px; padding: 0; border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(16, 16, 18, 0.92);
+            color: #fff; font-size: 19px; line-height: 1; touch-action: manipulation;
+        }
+        /* PURE SCREEN: no title bar, no background, no frame. The picture covers the whole display,
+           even under the notch and rounded corners. The buttons stay inside the safe area on top of it. */
+        body.full { --pt: max(2px, env(safe-area-inset-top)); --pr: max(2px, env(safe-area-inset-right));
+            --pb: max(2px, env(safe-area-inset-bottom)); --pl: max(2px, env(safe-area-inset-left));
+            padding: var(--pt) var(--pr) var(--pb) var(--pl); background: #000; }
+        html:has(body.full) { background: #000; }
+        body.full .topbar, body.full #status { display: none; }
+        body.full .controller-container { max-width: none; margin: 0; border: 0; border-radius: 0;
+            background: transparent; box-shadow: none; overflow: visible; }
+        body.full #screen { top: calc(-1 * var(--pt)); left: calc(-1 * var(--pl)); right: auto; bottom: auto;
+            width: 100vw; height: 100vh; height: 100dvh; aspect-ratio: auto; transform: none; }
+        body.full .screen-fill #screen img, body.full .screen-fill #screen video { object-fit: cover; }
+        #settings {
+            position: fixed; z-index: 45; text-align: left;
+            top: calc(max(6px, env(safe-area-inset-top)) + 50px); right: max(10px, env(safe-area-inset-right));
+            width: min(320px, 70vw); max-height: calc(100vh - 70px); max-height: calc(100dvh - 70px); overflow: auto;
+            border-radius: 14px; background: rgba(18, 18, 21, 0.97);
+            -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+            animation: panelIn 0.18s ease-out;
+        }
+        @keyframes panelIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+        #settings button, #settings input { touch-action: manipulation; }
+        .shead {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 14px; font-weight: 700; letter-spacing: 0.3px;
+        }
+        .shead button {
+            width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08); color: #ddd; font-size: 13px;
+        }
+        #settings section { padding: 12px 14px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+        #settings section:last-child { border-bottom: 0; padding-bottom: 14px; }
+        #settings h4 {
+            margin: 0 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 1.4px;
+            text-transform: uppercase; color: #8b8b95;
+        }
+        .field { margin-bottom: 14px; }
+        .fl { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: 13px; color: #e6e6ea; }
+        .fl b { font-weight: 600; color: #f2c94c; }
+        .shint { margin: 6px 0 0; font-size: 11px; color: #8b8b95; }
+        .seg {
+            display: flex; gap: 3px; padding: 3px; border-radius: 10px;
+            background: #0d0d0f; border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .seg button {
+            flex: 1; padding: 7px 2px; border: 0; border-radius: 7px;
+            background: transparent; color: #b9b9c2; font-size: 12px; font-weight: 600;
+        }
+        .seg button.on { background: #f2c94c; color: #141414; }
+        #settings input[type="range"] {
+            -webkit-appearance: none; appearance: none; width: 100%; height: 4px; margin: 10px 0 8px; border-radius: 99px;
+            background: linear-gradient(to right, #f2c94c var(--p, 100%), #34343b var(--p, 100%));
+        }
+        #settings input[type="range"]::-webkit-slider-runnable-track { height: 4px; background: transparent; }
+        #settings input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%;
+            background: #fff; border: 3px solid #f2c94c; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+        #settings input[type="range"]::-moz-range-track { height: 4px; background: transparent; }
+        #settings input[type="range"]::-moz-range-thumb {
+            width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid #f2c94c;
+        }
+        #settings .wideBtn {
+            width: 100%; margin-top: 2px; padding: 10px; border-radius: 9px;
+            border: 1px solid rgba(255, 255, 255, 0.2); background: transparent;
+            color: #fff; font-size: 13px; font-weight: 600;
+        }
+        #settings .wideBtn:active { background: rgba(255, 255, 255, 0.08); }
+        @media (prefers-reduced-motion: reduce) {
+            #settings { animation: none; }
+            #gearBtn { transition: none; }
+        }
+        #screen.nopic::before { content: "Waiting for the picture..."; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #8b8b95; font-size: 15px; z-index: 1; }
+        #screen video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+        
+        /* Normal gray spectate mode that lets you see the gameplay clearly */
+        #screen.waiting-gray img, 
+        #screen.waiting-gray video {
+            filter: none;
+            transition: filter 0.3s ease;
+        }
+        #screen.waiting-gray::after {
+            content: "SPECTATING (WAITING ROOM)";
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 12px;
+            border-radius: 20px;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 10;
+        }
+
+        .kbmap { line-height: 1.7; font-size: 12px; color: #b9b9c2; }
+        .kbmap b { color: #f2c94c; }
+        /* small key letters on the buttons when a keyboard is available (PC) */
+        body.kb [data-key]::after {
+            content: attr(data-key); position: absolute; top: 3px; right: 5px; padding: 1px 5px;
+            border-radius: 4px; background: rgba(0, 0, 0, 0.6); color: #fff;
+            font-size: 10px; font-weight: 800; line-height: 1.2; pointer-events: none;
+        }
+        body.kb .act[data-key]::after { top: auto; bottom: 5px; right: 50%; transform: translateX(50%); }
+        /* desktop: no big on-screen buttons, just the screen (the keyboard plays) */
+        body.screen-only .shoulder, body.screen-only .pill, body.screen-only .dpad, body.screen-only .act { display: none !important; }
+        body.screen-only #editBtn { display: none; }
+        #screenHint {
+            display: none; position: absolute; inset: 0; align-items: center; justify-content: center;
+            color: #8b8b95; font-size: 15px; letter-spacing: 0.5px; pointer-events: none;
+        }
+        body.screen-only #pad:not(.has-screen) #screenHint { display: flex; }
+        /* small controller in the settings */
+        .mini { margin: 4px 0 6px; }
+        .mrow { display: flex; gap: 5px; margin-bottom: 8px; }
+        .mrow.mid { align-items: center; justify-content: space-between; }
+        .mk {
+            position: relative; min-width: 34px; height: 34px; padding: 0 5px; border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18); background: #1a1a1e; color: #e6e6ea;
+            font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+            touch-action: manipulation;
+        }
+        .mk i { position: absolute; right: 3px; bottom: 0; font-style: normal; font-size: 9px; color: #f2c94c; }
+        .mk.on { background: #f2c94c; color: #141414; border-color: #fff; }
+        .mk.on i { color: #141414; }
+        .mk.wide { flex: 1; }
+        .mk.round { border-radius: 50%; width: 34px; padding: 0; }
+        .mk.pillk { width: 66px; height: 26px; border-radius: 999px; font-size: 9px; }
+        .mdpad { display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(2, 34px); gap: 3px;
+            grid-template-areas: ". u ." "l d r"; }
+        .gu { grid-area: u; } .gl { grid-area: l; } .gd { grid-area: d; } .gr { grid-area: r; }
+        .mcenter { display: flex; flex-direction: column; gap: 6px; }
+        .mface { display: grid; grid-template-columns: repeat(2, 34px); gap: 5px; }
+        #turnToast {
+            position: fixed; z-index: 70; left: 50%; top: 24%; transform: translateX(-50%);
+            padding: 14px 26px; border-radius: 14px; white-space: nowrap; pointer-events: none;
+            background: rgba(0, 0, 0, 0.88); border: 2px solid #ffd700; color: #ffd700;
+            font-size: clamp(20px, 4vw, 34px); font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
+        }
+        #turnToast.show { animation: turnpop 3.4s ease forwards; }
+        @keyframes turnpop {
+            0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+            10% { opacity: 1; transform: translateX(-50%) scale(1.06); }
+            16% { transform: translateX(-50%) scale(1); }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        #joinMsg { margin: 0; font-size: 14px; color: #ff6b6b; min-height: 18px; }
+        /* game full / locked: hide the form and block the controller completely */
+        #joinBox.closed { background: #000; }
+        #joinBox.closed input, #joinBox.closed button { display: none; }
+        #joinBox.closed #joinMsg { font-size: 22px; font-weight: 800; color: #ffd700; }
+    </style>
+    <link rel="stylesheet" href="japan.css">
+</head>
+<body class="soft black">
+
+    <header class="topbar">
+        <h2>Player 2 Control</h2>
+        <div id="status">Connecting to stream server...</div>
+    </header>
+
+    <!-- Settings: gear in the top-right corner, outside the controller -->
+    <button id="fsBtn" aria-label="Full screen">⛶</button>
+    <button id="gearBtn" aria-label="Settings">⚙</button>
+    <div id="settings" hidden>
+        <div class="shead">
+            <span>Settings</span>
+            <button id="closeSettings" aria-label="Close">✕</button>
+        </div>
+
+        <section id="screenRow" hidden>
+            <h4>Screen</h4>
+            <div class="field">
+                <div class="fl">Size</div>
+                <div class="seg">
+                    <button data-screen="fill">Fill</button>
+                    <button data-screen="wide">Wide</button>
+                    <button data-screen="fit">Fit</button>
+                </div>
+            </div>
+            <div class="field">
+                <div class="fl">Width <b id="swVal">100%</b></div>
+                <input type="range" id="swRange" min="50" max="100" value="100">
+            </div>
+            <!-- Spread screen just for the middle screen container -->
+            <div class="field" id="fullscreenField">
+                <div class="fl">Stream View</div>
+                <button class="wideBtn" id="fullscreenBtn">Spread Screen</button>
+                <div class="shint">Press the <b>F</b> key to spread the screen.</div>
+            </div>
+        </section>
+
+        <section>
+            <h4>View</h4>
+            <div class="field">
+                <div class="fl">Look</div>
+                <div class="seg">
+                    <button data-theme="black">Black</button>
+                    <button data-theme="light">Light</button>
+                    <button data-theme="dark">Classic</button>
+                </div>
+            </div>
+            <button class="tool wideBtn" id="fsBtn2">Full screen</button>
+            <div class="shint" id="fsHint"></div>
+        </section>
+
+        <section id="soundRow" hidden>
+            <h4>Sound</h4>
+            <div class="field">
+                <div class="fl">Game sound</div>
+                <div class="seg">
+                    <button data-snd="1">On</button>
+                    <button data-snd="0">Off</button>
+                </div>
+            </div>
+            <div class="field">
+                <div class="fl">Volume <b id="volVal">80%</b></div>
+                <input type="range" id="volRange" min="0" max="100" value="80">
+            </div>
+        </section>
+
+        <section id="vibRow" hidden>
+            <h4>Feedback</h4>
+            <div class="field">
+                <div class="fl">Vibration</div>
+                <div class="seg">
+                    <button data-vib="0">Off</button>
+                    <button data-vib="1">Light</button>
+                    <button data-vib="2">Medium</button>
+                    <button data-vib="3">Strong</button>
+                </div>
+            </div>
+        </section>
+
+
+        <section>
+            <h4>Buttons</h4>
+            <div class="field">
+                <div class="fl">Opacity <b id="opVal">100%</b></div>
+                <input type="range" id="opRange2" min="30" max="100" value="100">
+                <div class="shint">100% is solid black. Lower lets you see more of the game.</div>
+            </div>
+            <button class="tool wideBtn" id="editBtn">Move or resize buttons</button>
+        </section>
+
+        <section id="kbRow" hidden>
+            <h4>Keyboard controller</h4>
+            <div class="field">
+                <div class="fl">On-screen buttons</div>
+                <div class="seg">
+                    <button data-btnshow="0">Hide</button>
+                    <button data-btnshow="1">Show</button>
+                </div>
+            </div>
+            <div class="mini">
+                <div class="mrow">
+                    <button class="mk wide" data-mini="L2">L2<i>L</i></button>
+                    <button class="mk wide" data-mini="L1">L1<i>O</i></button>
+                    <button class="mk wide" data-mini="R1">R1<i>P</i></button>
+                    <button class="mk wide" data-mini="R2">R2<i>;</i></button>
+                </div>
+                <div class="mrow mid">
+                    <div class="mdpad">
+                        <button class="mk gu" data-mini="UP">&#9650;<i>W</i></button>
+                        <button class="mk gl" data-mini="LEFT">&#9664;<i>A</i></button>
+                        <button class="mk gd" data-mini="DOWN">&#9660;<i>S</i></button>
+                        <button class="mk gr" data-mini="RIGHT">&#9654;<i>D</i></button>
+                    </div>
+                    <div class="mcenter">
+                        <button class="mk pillk" data-mini="SELECT">SELECT<i>V</i></button>
+                        <button class="mk pillk" data-mini="START">START<i>B</i></button>
+                    </div>
+                    <div class="mface">
+                        <button class="mk round" data-mini="1">X<i>U</i></button>
+                        <button class="mk round" data-mini="2">Y<i>I</i></button>
+                        <button class="mk round" data-mini="3">A<i>J</i></button>
+                        <button class="mk round" data-mini="4">B<i>K</i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="shint">Press the keys on your keyboard. A key turns gold while it is pressed, so you can see it works. You can also click them.</div>
+        </section>
+    </div>
+
+    <div id="turnToast" hidden>It's your turn to play!</div>
+
+    <!-- Connection lost screen -->
+    <div id="lostBox" hidden>
+        <p class="big">Connection lost</p>
+        <p class="small">The connection to the game dropped. The streamer may have restarted. This page keeps trying by itself.</p>
+        <p class="small">Your place in line is kept for 30 seconds.</p>
+        <button id="reconnectBtn">Reconnect</button>
+    </div>
+
+    <!-- Join screen -->
+    <div id="joinBox" hidden>
+        <h2>Join the game</h2>
+        <input id="nameInput" maxlength="20" placeholder="Your name" autocomplete="off">
+        <input id="codeInput" maxlength="20" placeholder="Join code" autocomplete="off" hidden>
+        <button id="joinBtn">Join</button>
+        <p id="joinMsg"></p>
+    </div>
+
+    <!-- Layout editor (shown only in edit mode) -->
+    <div id="editPanel" hidden>
+        <p class="hint" id="hint">Drag to move. Tap a button to resize it.</p>
+        <label>Size <input type="range" id="sizeRange" min="50" max="200" step="5" value="100" disabled></label>
+        <label>Opacity <input type="range" id="opRange" min="30" max="100" value="100"></label>
+        <div class="tool-row">
+            <button class="tool" id="rightBtn">Right-handed</button>
+            <button class="tool" id="leftBtn">Left-handed</button>
+            <button class="tool" id="resetBtn">Reset</button>
+            <button class="tool primary" id="doneBtn">Done</button>
+        </div>
+    </div>
+
+    <!-- Controller -->
+    <div class="controller-container" id="pad">
+        <div id="screenHint">The streamer's screen appears here</div>
+        <div id="screen" class="off"><img id="shot" alt="" hidden><video id="rtcVideo" autoplay muted playsinline hidden></video></div>
+        <button class="shoulder l2" data-button="L2" data-drag="l2">L2</button>
+        <button class="shoulder l1" data-button="L1" data-drag="l1">L1</button>
+        <button class="shoulder r2" data-button="R2" data-drag="r2">R2</button>
+        <button class="shoulder r1" data-button="R1" data-drag="r1">R1</button>
+
+        <div class="dpad" data-drag="dpad">
+            <button class="btn-up" data-button="UP" aria-label="Up"></button>
+            <button class="btn-left" data-button="LEFT" aria-label="Left"></button>
+            <button class="btn-right" data-button="RIGHT" aria-label="Right"></button>
+            <button class="btn-down" data-button="DOWN" aria-label="Down"></button>
+        </div>
+
+        <button class="pill select" data-button="SELECT" data-drag="select">SELECT</button>
+        <button class="pill start" data-button="START" data-drag="start">START</button>
+
+        <button class="act b1" data-button="1" data-drag="b1">X</button>
+        <button class="act b2" data-button="2" data-drag="b2">Y</button>
+        <button class="act b3" data-button="3" data-drag="b3">A</button>
+        <button class="act b4" data-button="4" data-drag="b4">B</button>
+    </div>
+
+    <!-- Shown on phones held upright -->
+    <div id="rotate">
+        <div class="rot-icon">📱</div>
+        <p>Turn your phone sideways to play</p>
+    </div>
+
+    <script>
+        // ---------- Connection ----------
+        const statusDiv = document.getElementById('status');
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        let ws;
+
+        const joinBox = document.getElementById('joinBox');
+        const nameInput = document.getElementById('nameInput');
+        const codeInput = document.getElementById('codeInput');
+        const joinMsg = document.getElementById('joinMsg');
+        const joinBtn = document.getElementById('joinBtn');
+        const lostBox = document.getElementById('lostBox');
+        let joined = false;
+        let rejoin = null;      // join message to resend after a dropped connection
+        let lastJoin = null;
+        let removed = false;    // kicked or banned: don't offer Reconnect
+        let lastRole = '';      // to notice the moment your turn starts
+        let toastTimer = null;
+
+        // Same token = the server recognises you and keeps your place in line
+        let token = '';
+        try { token = sessionStorage.getItem('padToken') || ''; } catch (e) {}
+        if (!token) {
+            token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+            try { sessionStorage.setItem('padToken', token); } catch (e) {}
+        }
+
+        try { nameInput.value = localStorage.getItem('padName') || ''; } catch (e) {}
+
+        function setClosed(on, full) {
+            joinBox.classList.toggle('closed', on);
+            if (on) joinMsg.textContent = full === true ? 'The game is full. Try again later.' : full === false ? 'The game is locked right now.' : 'The game is full or locked. Try again later.';
+        }
+
+        function setStatus(text, color) {
+            statusDiv.textContent = text;
+            const onLight = document.body.classList.contains('soft') && !document.body.classList.contains('black');
+            const darker = { '#ffd700': '#b07d00', '#2ed573': '#1f9d55', '#ffa502': '#c77700', '#ff4757': '#d63a49' };
+            statusDiv.style.color = (onLight && darker[color]) || color || '';
+        }
+
+        joinBtn.addEventListener('click', () => {
+            const name = nameInput.value.trim();
+            if (!name) { joinMsg.textContent = 'Type your name first.'; return; }
+            try { localStorage.setItem('padName', name); } catch (e) {}
+            joinMsg.textContent = '';
+            lastJoin = { type: 'join', name: name, code: codeInput.value, token: token };
+            ws.send(JSON.stringify(lastJoin));
+        });
+
+        const onMessage = (e) => {
+            if (typeof e.data !== 'string') {
+                const head = new Uint8Array(e.data, 0, 1)[0];
+                if (head === 2 || head === 3) { playAudio(new Uint8Array(e.data)); return; }   // game sound
+                // otherwise a picture from the shared screen
+                try { ws.send('a'); } catch (x) {}   // tell the server it arrived, so it sends the next one
+                drawFrame(e.data);
+                return;
+            }
+            const msg = JSON.parse(e.data);
+            switch (msg.role) {
+                case 'hello':
+                    if (joined || rejoin) break;
+                    codeInput.hidden = !msg.needCode;
+                    joinBox.hidden = false;
+                    joinMsg.textContent = '';
+                    setClosed(!!msg.locked, null);
+                    setStatus(msg.locked ? 'Game is full or locked.' : 'Enter your name to join.', '#ffd700');
+                    break;
+                case 'screen':
+                    shareLive = !!msg.live;
+                    gotFrame = false;   // a new picture stream starts
+                    screenBox.classList.toggle('waiting-gray', !!msg.spectate);   // watching from the waiting line
+                    showStream();
+                    break;
+                case 'audio':
+                    soundAvailable = !!msg.live;
+                    document.getElementById('soundRow').hidden = !soundAvailable;
+                    if (soundAvailable) openAudioLine(); else closeAudioLine();
+                    break;
+                case 'rtc':
+                    onRtc(msg).catch(() => closeRtc());
+                    break;
+                case 'player':
+                    if (lastRole !== 'player') showTurnToast();
+                    lastRole = 'player';
+                    joined = true;
+                    rejoin = null;
+                    joinBox.hidden = true;
+                    // Remove the gray filter instantly and restore full original color on your turn
+                    screenBox.classList.remove('waiting-gray');
+                    shareLive = true;
+                    showStream();
+                    setStatus(msg.secondsLeft != null
+                        ? `Your turn! ${msg.secondsLeft}s left`
+                        : `Your turn! You are Player ${msg.playerNum || 2}.`, '#2ed573');
+                    break;
+                case 'queued':
+                    lastRole = 'queued';
+                    joined = true;
+                    rejoin = null;
+                    joinBox.hidden = true;
+                    releaseAll();
+                    setStatus(`Waiting in line: ${msg.position} of ${msg.total}` + (shareLive ? ' (watching the match)' : ''), '#ffa502');
+                    break;
+                case 'locked':
+                    joinBox.hidden = false;
+                    rejoin = null;
+                    setClosed(true, !!msg.full);
+                    break;
+                case 'denied':
+                    rejoin = null;
+                    joinBox.hidden = false;
+                    joinMsg.textContent = msg.reason || 'Could not join.';
+                    break;
+                case 'kicked':
+                    joined = true;
+                    rejoin = null;
+                    joinBox.hidden = true;
+                    removed = true; setStatus('You were removed from the game.', '#ff4757');
+                    break;
+                case 'banned':
+                    joined = true;
+                    rejoin = null;
+                    joinBox.hidden = true;
+                    removed = true; setStatus('You are banned.', '#ff4757');
+                    break;
+            }
+        };
+
+        function openSocket() {
+            if (ws && ws.readyState <= 1) return;
+            ws = new WebSocket(`${proto}://${location.host}`);
+            ws.binaryType = 'arraybuffer';
+            ws.onmessage = onMessage;
+            ws.onopen = () => {
+                lostBox.hidden = true;
+                if (rejoin) ws.send(JSON.stringify(rejoin));   // same name and token: back in your place
+            };
+            ws.onclose = () => {
+                if (removed) return;
+                if (joined) rejoin = lastJoin;
+                joined = false;
+                lastRole = '';
+                closeRtc();
+                closeAudioLine();
+                releaseAll();
+                joinBox.hidden = true;
+                lostBox.hidden = false;
+                setStatus('Connection lost.', '#ff4757');
+            };
+        }
+
+        // keep trying every few seconds while the lost-connection screen is showing
+        setInterval(() => { if (!lostBox.hidden && !removed) openSocket(); }, 4000);
+
+        document.getElementById('reconnectBtn').addEventListener('click', () => {
+            setStatus('Reconnecting...', '#ffa502');
+            openSocket();
+        });
+        // Coming back to the page after the phone slept: reconnect by itself
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !lostBox.hidden && !removed) openSocket();
+        });
+
+        // ---------- Game screen: the streamer's shared screen in the middle, like PPSSPP ----------
+        const padBox = document.getElementById('pad');
+        const screenBox = document.getElementById('screen');
+        const shot = document.getElementById('shot');
+        let shareLive = false;
+        let shotBusy = false;
+        let shotPending = null;   // the newest picture, waiting while the last one is still drawing
+        let shotUrl = '';
+        let gotFrame = false;   // has a picture arrived yet?
+
+        // colours the used part of a slider
+        function fillRange(el) {
+            el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%');
+        }
+
+        // ---------- Game sound (comes from the streamer's PC) ----------
+        // The sound is played by one continuous player instead of many small pieces. Playing many tiny pieces
+        // is what made the sound crackle. The player also keeps a small cushion that grows if the sound breaks up.
+        const ULAW = new Float32Array(256);
+        for (let i = 0; i < 256; i++) {
+            const u = ~i & 0xFF, sign = u & 0x80, exp = (u >> 4) & 7, mant = u & 0x0F;
+            const val = (((mant << 3) + 0x84) << exp) - 0x84;
+            ULAW[i] = (sign ? -val : val) / 32768;
+        }
+        const PLAYER_CODE = `
+class Play extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this.cap = 32000 * 3;
+        this.L = new Float32Array(this.cap); this.R = new Float32Array(this.cap);
+        this.w = 0; this.r = 0;          // samples written / read position (32000 per second)
+        this.target = 0.25;              // seconds to keep ready; grows when the sound breaks up
+        this.playing = false; this.fade = 0; this.calm = 0;
+        this.port.onmessage = (e) => {
+            const l = e.data.l, r = e.data.r;
+            for (let i = 0; i < l.length; i++) { const k = (this.w + i) % this.cap; this.L[k] = l[i]; this.R[k] = r[i]; }
+            this.w += l.length;
+        };
+    }
+    process(inputs, outputs) {
+        const out = outputs[0], oL = out[0], oR = out[1] || out[0], n = oL.length;
+        const base = 32000 / sampleRate;
+        const buffered = this.w - this.r;
+        if (!this.playing) {
+            if (buffered >= this.target * 32000) { this.playing = true; this.fade = 0; }
+            else { oL.fill(0); if (oR !== oL) oR.fill(0); return true; }
+        }
+        // a little faster when too much is waiting, a little slower when it is running low: no jumps, no clicks
+        const err = buffered / 32000 - this.target;
+        const rate = base * (1 + Math.max(-0.02, Math.min(0.05, err * 0.2)));
+        for (let i = 0; i < n; i++) {
+            const idx = Math.floor(this.r), f = this.r - idx;
+            if (this.w - idx < 2) {      // ran dry: stop, wait for a bigger cushion
+                for (let j = i; j < n; j++) { oL[j] = 0; oR[j] = 0; }
+                this.playing = false; this.target = Math.min(0.7, this.target + 0.05); this.calm = 0;
+                return true;
+            }
+            const a = idx % this.cap, b = (idx + 1) % this.cap;
+            let g = 1;
+            if (this.fade < 1) { g = this.fade; this.fade += 1 / 240; }   // 5 ms fade-in after a gap
+            const left = this.w - idx;
+            if (left < 160) g *= left / 160;   // the sound is about to run out: fade it out smoothly instead of cutting it
+            oL[i] = (this.L[a] * (1 - f) + this.L[b] * f) * g;
+            oR[i] = (this.R[a] * (1 - f) + this.R[b] * f) * g;
+            this.r += rate;
+        }
+        if (++this.calm > 3000 && this.target > 0.2) { this.target -= 0.02; this.calm = 0; }   // calm for ~8 s: less delay again
+        if (this.w - this.r > 0.9 * 32000) this.r = this.w - this.target * 32000;               // a big burst: skip ahead
+        return true;
+    }
+}
+registerProcessor('play', Play);
+`;
+        let soundAvailable = false, soundOn = true, volume = 0.8;
+        let ac = null, outGain = null, playNode = null, audioSock = null;
+        try {
+            soundOn = localStorage.getItem('padSound') !== '0';
+            const vv = Number(localStorage.getItem('padVolume'));
+            if (localStorage.getItem('padVolume') !== null && vv >= 0 && vv <= 100) volume = vv / 100;
+        } catch (e) {}
+
+        function applyVolume() {
+            if (outGain) outGain.gain.value = soundOn ? volume : 0;
+            const r = document.getElementById('volRange');
+            r.value = Math.round(volume * 100);
+            fillRange(r);
+            document.getElementById('volVal').textContent = Math.round(volume * 100) + '%';
+            document.querySelectorAll('[data-snd]').forEach((b) => b.classList.toggle('on', (b.dataset.snd === '1') === soundOn));
+        }
+
+        // Browsers only allow sound after a tap or key press, so this starts at your first one
+        function ensureAudio() {
+            if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            ac = new AC({ latencyHint: 'interactive' });
+            outGain = ac.createGain();
+            outGain.connect(ac.destination);
+            try { navigator.audioSession.type = 'playback'; } catch (e) {}   // iPhone: play even with the silent switch on
+            if (ac.audioWorklet) {
+                ac.audioWorklet.addModule(URL.createObjectURL(new Blob([PLAYER_CODE], { type: 'text/javascript' }))).then(() => {
+                    playNode = new AudioWorkletNode(ac, 'play', { numberOfInputs: 0, outputChannelCount: [2] });
+                    playNode.connect(outGain);
+                }).catch(() => {});
+            }
+            applyVolume();
+        }
+        ['pointerdown', 'keydown', 'touchend'].forEach((ev) => document.addEventListener(ev, ensureAudio, { passive: true }));
+
+        // packet: first byte 2 = 8-bit compressed, 3 = 16-bit; then left and right values one after the other
+        function playAudio(u8) {
+            if (!playNode || !ac || ac.state !== 'running' || !soundOn || !soundAvailable) return;
+            let L, R;
+            if (u8[0] === 3) {
+                const n = (u8.length - 1) >> 2;
+                const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+                L = new Float32Array(n); R = new Float32Array(n);
+                for (let i = 0; i < n; i++) { L[i] = dv.getInt16(1 + 4 * i, true) / 32768; R[i] = dv.getInt16(3 + 4 * i, true) / 32768; }
+            } else {
+                const n = (u8.length - 1) >> 1;
+                L = new Float32Array(n); R = new Float32Array(n);
+                for (let i = 0; i < n; i++) { L[i] = ULAW[u8[1 + 2 * i]]; R[i] = ULAW[u8[2 + 2 * i]]; }
+            }
+            playNode.port.postMessage({ l: L, r: R }, [L.buffer, R.buffer]);
+        }
+
+        // sound has its own connection, so a big picture never holds it up
+        function openAudioLine() {
+            closeAudioLine();
+            try {
+                audioSock = new WebSocket(`${proto}://${location.host}/?audio=1&t=${token}`);
+                audioSock.binaryType = 'arraybuffer';
+                audioSock.onmessage = (e) => { if (typeof e.data !== 'string') playAudio(new Uint8Array(e.data)); };
+            } catch (e) { audioSock = null; }
+        }
+        function closeAudioLine() {
+            if (audioSock) { try { audioSock.close(); } catch (e) {} audioSock = null; }
+        }
+
+        document.querySelectorAll('[data-snd]').forEach((b) => b.addEventListener('click', () => {
+            soundOn = b.dataset.snd === '1';
+            try { localStorage.setItem('padSound', soundOn ? '1' : '0'); } catch (e) {}
+            applyVolume();
+        }));
+        const volRange = document.getElementById('volRange');
+        volRange.addEventListener('input', () => { volume = Number(volRange.value) / 100; applyVolume(); });
+        volRange.addEventListener('change', () => { try { localStorage.setItem('padVolume', String(Math.round(volume * 100))); } catch (e) {} });
+        applyVolume();
+
+        // ---------- Fast video link (WebRTC), the same idea Discord uses ----------
+        // If it cannot connect, nothing changes: the pictures keep coming.
+        const rtcVideo = document.getElementById('rtcVideo');
+        let rtc = null, rtcLive = false, rtcRemoteSet = false, rtcTimer = null, rtcPending = [];
+
+        function sendJson(o) { try { ws.send(JSON.stringify(o)); } catch (e) {} }
+
+        function setRtcLive(on) {
+            if (rtcLive === on) return;
+            rtcLive = on;
+            rtcVideo.hidden = !(on && shareLive);
+            shot.hidden = on || !shareLive;
+            sendJson({ rtc: on ? 'connected' : 'failed' });   // the server stops / restarts the pictures
+        }
+
+        function closeRtc() {
+            clearTimeout(rtcTimer);
+            if (rtc) { try { rtc.close(); } catch (e) {} rtc = null; }
+            rtcRemoteSet = false;
+            rtcPending = [];
+            rtcVideo.srcObject = null;
+            setRtcLive(false);
+        }
+
+        async function onRtc(m) {
+            if (!window.RTCPeerConnection) return;
+            if (m.type === 'offer') {
+                closeRtc();
+                const conn = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                rtc = conn;
+                conn.ontrack = (e) => {
+                    try { e.receiver.jitterBufferTarget = 0; } catch (x) {}   // play frames as soon as they arrive
+                    try { e.receiver.playoutDelayHint = 0; } catch (x) {}
+                    rtcVideo.srcObject = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+                    rtcVideo.play().catch(() => {});
+                };
+                conn.onicecandidate = (e) => { if (e.candidate) sendJson({ rtc: 'ice', candidate: e.candidate }); };
+                conn.onconnectionstatechange = () => {
+                    if (conn !== rtc) return;
+                    if (conn.connectionState === 'connected') { clearTimeout(rtcTimer); setRtcLive(true); }
+                    else if (conn.connectionState === 'failed' || conn.connectionState === 'closed') closeRtc();
+                };
+                rtcTimer = setTimeout(() => { if (rtc === conn && !rtcLive) closeRtc(); }, 8000);   // not connected in 8s: give up
+                await conn.setRemoteDescription({ type: 'offer', sdp: m.sdp });
+                rtcRemoteSet = true;
+                rtcPending.forEach((c) => conn.addIceCandidate(c).catch(() => {}));
+                rtcPending = [];
+                const answer = await conn.createAnswer();
+                await conn.setLocalDescription(answer);
+                sendJson({ rtc: 'answer', sdp: answer.sdp });
+            } else if (m.type === 'ice' && m.candidate) {
+                if (rtc && rtcRemoteSet) rtc.addIceCandidate(m.candidate).catch(() => {});
+                else rtcPending.push(m.candidate);
+            }
+        }
+
+        function paint(data) {
+            if (!gotFrame) { gotFrame = true; screenBox.classList.remove('nopic'); }
+            shotBusy = true;
+            const old = shotUrl;
+            shotUrl = URL.createObjectURL(new Blob([data], { type: 'image/jpeg' }));
+            shot.src = shotUrl;
+            if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);
+        }
+        shot.onload = shot.onerror = () => {
+            shotBusy = false;
+            if (shotPending) { const d = shotPending; shotPending = null; paint(d); }
+        };
+
+        // Always show the NEWEST picture. Older ones still waiting are thrown away, which keeps the delay low.
+        function drawFrame(data) {
+            if (!shareLive || rtcLive) return;   // the fast video link is carrying the picture
+            if (shotBusy) shotPending = data; else paint(data);
+        }
+
+        function showStream() {
+            padBox.classList.toggle('has-screen', shareLive);
+            screenBox.classList.toggle('off', !shareLive);
+            shot.hidden = !shareLive || rtcLive;
+            screenBox.classList.toggle('nopic', shareLive && !gotFrame && !rtcLive);
+            rtcVideo.hidden = !(shareLive && rtcLive);
+            document.getElementById('screenRow').hidden = !shareLive;
+            if (!shareLive) { shotPending = null; closeRtc(); }
+        }
+
+        // Screen size: Fill / Wide / Fit (remembered on this phone)
+        const SCREEN_MODES = ['fill', 'wide', 'fit'];
+        let screenMode = 'fill';
+        try {
+            const s = localStorage.getItem('padScreen');
+            if (SCREEN_MODES.includes(s)) screenMode = s;
+        } catch (e) {}
+        function applyScreenMode() {
+            SCREEN_MODES.forEach((m) => padBox.classList.toggle('screen-' + m, m === screenMode));
+            document.querySelectorAll('[data-screen]').forEach((b) => b.classList.toggle('on', b.dataset.screen === screenMode));
+        }
+        document.querySelectorAll('[data-screen]').forEach((b) => b.addEventListener('click', () => {
+            screenMode = b.dataset.screen;
+            try { localStorage.setItem('padScreen', screenMode); } catch (e) {}
+            applyScreenMode();
+        }));
+        applyScreenMode();
+
+        // Screen width: 50% to 100% of the chosen size
+        const swRange = document.getElementById('swRange');
+        let screenW = 100;
+        try {
+            const w = Number(localStorage.getItem('padScreenW'));
+            if (w >= 50 && w <= 100) screenW = w;
+        } catch (e) {}
+        function applyScreenW() {
+            padBox.style.setProperty('--sw', screenW / 100);
+            swRange.value = screenW;
+            fillRange(swRange);
+            document.getElementById('swVal').textContent = screenW + '%';
+        }
+        swRange.addEventListener('input', () => { screenW = Number(swRange.value); applyScreenW(); });
+        swRange.addEventListener('change', () => { try { localStorage.setItem('padScreenW', String(screenW)); } catch (e) {} });
+        applyScreenW();
+
+        // ---------- Spread Screen / Fullscreen specifically for the middle stream box ----------
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const fullscreenField = document.getElementById('fullscreenField');
+
+        if (!document.fullscreenEnabled) {
+            if (fullscreenField) fullscreenField.hidden = true;
+        }
+
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    screenBox.requestFullscreen().catch(err => {
+                        console.error('Error enabling fullscreen for stream:', err);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            });
+
+            document.addEventListener('fullscreenchange', () => {
+                fullscreenBtn.textContent = (document.fullscreenElement === screenBox) ? 'Exit Spread Screen' : 'Spread Screen';
+            });
+        }
+
+        // Press 'F' key on desktop to spread the middle screen
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                const tag = (document.activeElement && document.activeElement.tagName) || '';
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                if (!editMode && joinBox.hidden && lostBox.hidden) {
+                    e.preventDefault();
+                    if (!document.fullscreenElement) {
+                        screenBox.requestFullscreen().catch(() => {});
+                    } else {
+                        if (document.exitFullscreen) document.exitFullscreen();
+                    }
+                }
+            }
+        });
+
+        // ---------- Vibration (remembered) ----------
+        // Off / Light / Medium / Strong. Very short pulses are too weak to feel on many phones.
+        const VIB = [
+            { name: 'Off', ms: 0 },
+            { name: 'Light', ms: 25 },
+            { name: 'Medium', ms: 40 },
+            { name: 'Strong', ms: 70 }
+        ];
+        let vibLevel = 2;   // Medium
+        try {
+            const saved = Number(localStorage.getItem('padVibLevel'));
+            if (saved >= 0 && saved < VIB.length && localStorage.getItem('padVibLevel') !== null) vibLevel = saved;
+        } catch (e) {}
+        const vibMs = () => VIB[vibLevel].ms;
+        function showVib() {
+            document.querySelectorAll('[data-vib]').forEach((b) => b.classList.toggle('on', Number(b.dataset.vib) === vibLevel));
+        }
+
+        // Android: navigator.vibrate. iPhone has no vibrate, but toggling a hidden
+        // <input type="checkbox" switch> makes the iPhone give a tap haptic (iOS 17.4 and newer).
+        let hapticLabel = null;
+        function setupIosHaptic() {
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = 'hapticSwitch';
+            input.setAttribute('switch', '');
+            const label = document.createElement('label');
+            label.htmlFor = 'hapticSwitch';
+            [input, label].forEach((el) => Object.assign(el.style, {
+                position: 'fixed', left: '-100px', top: '-100px', width: '1px', height: '1px',
+                opacity: '0', pointerEvents: 'none'
+            }));
+            document.body.append(input, label);
+            hapticLabel = label;
+        }
+        function buzz(ms) {
+            if (navigator.vibrate) navigator.vibrate(ms);
+            else if (hapticLabel) hapticLabel.click();
+        }
+
+        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (!navigator.vibrate && isIOS) setupIosHaptic();
+
+        document.getElementById('vibRow').hidden = !(navigator.vibrate || hapticLabel);
+        showVib();
+        document.querySelectorAll('[data-vib]').forEach((b) => b.addEventListener('click', () => {
+            vibLevel = Number(b.dataset.vib);
+            try { localStorage.setItem('padVibLevel', String(vibLevel)); } catch (e) {}
+            showVib();
+            if (vibMs()) buzz(vibMs());                    // try it right away
+        }));
+
+        // ---------- Keyboard (PC): W A S D, U I J K, and the shoulder keys ----------
+        const KEYS = {
+            KeyW: 'UP', 
+            KeyS: 'DOWN', 
+            KeyA: 'LEFT', 
+            KeyD: 'RIGHT',
+            KeyI: '1', 
+            KeyO: '2', 
+            KeyK: '3', 
+            KeyL: '4',
+            KeyU: 'L1',      
+            KeyJ: 'L2', 
+            KeyP: 'R1',      
+            Semicolon: 'R2',
+            KeyV: 'SELECT',  
+            KeyB: 'START'    
+        };
+        const KEY_LABEL = { Semicolon: ';' };
+        const buttonFor = (name) => document.querySelector('[data-button="' + name + '"]');
+
+        for (const code in KEYS) {   
+            const el = buttonFor(KEYS[code]);
+            if (el) el.setAttribute('data-key', KEY_LABEL[code] || code.replace('Key', ''));
+        }
+        if (window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+            document.body.classList.add('kb');                       
+            document.getElementById('kbRow').hidden = false;
+        }
+
+        let showDeskButtons = false;
+        try { showDeskButtons = localStorage.getItem('padDeskButtons') === '1'; } catch (e) {}
+        function applyDeskButtons() {
+            document.body.classList.toggle('screen-only', document.body.classList.contains('kb') && !showDeskButtons);
+            document.querySelectorAll('[data-btnshow]').forEach((b) => b.classList.toggle('on', (b.dataset.btnshow === '1') === showDeskButtons));
+        }
+        document.querySelectorAll('[data-btnshow]').forEach((b) => b.addEventListener('click', () => {
+            showDeskButtons = b.dataset.btnshow === '1';
+            try { localStorage.setItem('padDeskButtons', showDeskButtons ? '1' : '0'); } catch (e) {}
+            applyDeskButtons();
+        }));
+        applyDeskButtons();
+
+        function miniOn(name, on) {
+            document.querySelectorAll('[data-mini="' + name + '"]').forEach((el) => el.classList.toggle('on', on));
+        }
+        document.querySelectorAll('[data-mini]').forEach((el) => {
+            const name = el.dataset.mini;
+            el.addEventListener('pointerdown', (e) => {
+                if (editMode) return;
+                e.preventDefault();
+                el.setPointerCapture(e.pointerId);
+                press(name);
+            });
+            const up = () => release(name);
+            el.addEventListener('pointerup', up);
+            el.addEventListener('pointercancel', up);
+            el.addEventListener('lostpointercapture', up);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            const name = KEYS[e.code];
+            if (!name || e.ctrlKey || e.metaKey || e.altKey) return;
+            const tag = (document.activeElement && document.activeElement.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;   
+            if (editMode || !joinBox.hidden || !lostBox.hidden) return;
+            e.preventDefault();
+            if (e.repeat) return;
+            const el = buttonFor(name);
+            if (el) el.classList.add('touched');
+            press(name);
+        });
+        window.addEventListener('keyup', (e) => {
+            const name = KEYS[e.code];
+            if (!name) return;
+            const el = buttonFor(name);
+            if (el) el.classList.remove('touched');
+            release(name);
+        });
+
+        function showTurnToast() {
+            const t = document.getElementById('turnToast');
+            t.hidden = false;
+            t.classList.remove('show');
+            void t.offsetWidth;                            
+            t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+            if (vibMs()) { if (navigator.vibrate) navigator.vibrate([90, 60, 90]); else buzz(vibMs()); }
+        }
+
+        const gearBtn = document.getElementById('gearBtn');
+        const settingsBox = document.getElementById('settings');
+        // ---------- Look: black (default), light, or classic ----------
+        let theme = 'black';   // black (default), light, or dark = the classic gold look
+        try { const t = localStorage.getItem('padTheme'); if (t === 'light' || t === 'dark') theme = t; } catch (e) {}
+        function applyTheme() {
+            document.body.classList.toggle('soft', theme !== 'dark');
+            document.body.classList.toggle('black', theme === 'black');
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', theme === 'black' ? '#1b1c21' : theme === 'light' ? '#e0e5ec' : '#0d0f14');
+            document.querySelectorAll('[data-theme]').forEach((b) => b.classList.toggle('on', b.dataset.theme === theme));
+        }
+        document.querySelectorAll('[data-theme]').forEach((b) => b.addEventListener('click', () => {
+            theme = b.dataset.theme;
+            try { localStorage.setItem('padTheme', theme); } catch (e) {}
+            applyTheme();
+        }));
+        applyTheme();
+
+        // ---------- Full screen ----------
+        // Android, iPad and computers: real full screen. iPhone Safari has no full-screen feature for pages,
+        // so there the layout just uses every pixel, and "Add to Home Screen" gives true full screen.
+        const fsBtn = document.getElementById('fsBtn');
+        const fsBtn2 = document.getElementById('fsBtn2');
+        const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+        const standalone = window.navigator.standalone === true ||
+            (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches));
+
+        function updateFs() {
+            const on = document.body.classList.contains('full');
+            fsBtn.textContent = on ? '\u2921' : '\u26F6';
+            fsBtn2.textContent = on ? 'Exit full screen' : 'Full screen';
+        }
+        async function enterFull() {
+            document.body.classList.add('full');
+            const el = document.documentElement;
+            try {
+                if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+                else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+            } catch (e) {}
+            try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
+            updateFs();
+        }
+        function exitFull() {
+            document.body.classList.remove('full');
+            try { if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {}
+            try { screen.orientation.unlock(); } catch (e) {}
+            updateFs();
+        }
+        function toggleFull() {
+            setSettings(false);
+            if (document.body.classList.contains('full')) exitFull(); else enterFull();
+        }
+        fsBtn.addEventListener('click', toggleFull);
+        fsBtn2.addEventListener('click', toggleFull);
+        document.addEventListener('fullscreenchange', () => {   // the Back gesture or Esc leaves full screen too
+            if (!isFs() && !standalone) document.body.classList.remove('full');
+            updateFs();
+        });
+        if (standalone) {   // opened from the home screen: already full screen, so show the pure screen straight away
+            document.body.classList.add('full');
+            fsBtn.hidden = true;
+            fsBtn2.parentElement.hidden = true;
+        } else if (isIOS) {
+            document.getElementById('fsHint').textContent = 'Safari on iPhone always keeps its bars on a web page. For a pure full screen with nothing around it: tap Share, then Add to Home Screen, and open the game from that icon on your home screen.';
+        }
+        updateFs();
+
+        function setSettings(open) {
+            settingsBox.hidden = !open;
+            gearBtn.classList.toggle('open', open);
+        }
+        gearBtn.addEventListener('click', () => setSettings(settingsBox.hidden));
+        document.getElementById('closeSettings').addEventListener('click', () => setSettings(false));
+        document.addEventListener('pointerdown', (e) => {   
+            if (!settingsBox.hidden && !settingsBox.contains(e.target) && e.target !== gearBtn) setSettings(false);
+        });
+
+        openSocket();
+
+        function sendInput(button, action) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ button: button, action: action }));
+            }
+        }
+
+        const pressed = new Set();
+        let editMode = false;
+
+        function press(name) {
+            if (pressed.has(name)) return;
+            pressed.add(name);
+            miniOn(name, true);
+            sendInput(name, 'press');
+        }
+
+        function release(name) {
+            if (!pressed.has(name)) return;
+            pressed.delete(name);
+            miniOn(name, false);
+            sendInput(name, 'release');
+        }
+
+        function releaseAll() {
+            [...pressed].forEach(release);
+            document.querySelectorAll('.touched').forEach(el => el.classList.remove('touched'));
+        }
+
+        document.querySelectorAll('[data-button]').forEach(btn => {
+            const name = btn.dataset.button;
+
+            btn.addEventListener('pointerdown', (e) => {
+                if (editMode) return;            
+                e.preventDefault();
+                btn.setPointerCapture(e.pointerId);
+                btn.classList.add('touched');
+                if (vibMs() && !hapticLabel) buzz(vibMs());   
+                press(name);
+            });
+
+            const up = () => {
+                if (hapticLabel && vibMs() && btn.classList.contains('touched')) buzz(vibMs());   
+                btn.classList.remove('touched');
+                release(name);
+            };
+            btn.addEventListener('pointerup', up);
+            btn.addEventListener('pointercancel', up);
+            btn.addEventListener('lostpointercapture', up);
+        });
+
+        window.addEventListener('blur', releaseAll);
+        document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+        document.getElementById('pad').addEventListener('contextmenu', (e) => e.preventDefault());
+
+        const pad = document.getElementById('pad');
+        const STORAGE_KEY = 'tekkenLayoutV6';   
+
+        const NAMES = {
+            dpad: 'D-pad', b1: 'X', b2: 'Y', b3: 'A', b4: 'B',
+            l1: 'L1', l2: 'L2', r1: 'R1', r2: 'R2', select: 'SELECT', start: 'START'
+        };
+
+        const RIGHT_HANDED = {
+            dpad:   { x: 17, y: 26 },
+            b1:     { x: 64, y: 26 },
+            b2:     { x: 74, y: 26 },
+            b3:     { x: 64, y: 58 },
+            b4:     { x: 74, y: 58 },
+            l2:     { x: 3,  y: 30 },
+            l1:     { x: 3,  y: 62 },
+            r2:     { x: 86, y: 30 },
+            r1:     { x: 86, y: 62 },
+            select: { x: 35.5, y: 6 },
+            start:  { x: 52.5, y: 6 }
+        };
+        const LEFT_HANDED = {
+            dpad:   { x: 61, y: 26 },
+            b1:     { x: 15, y: 26 },
+            b2:     { x: 25, y: 26 },
+            b3:     { x: 15, y: 58 },
+            b4:     { x: 25, y: 58 },
+            l2:     { x: 86, y: 30 },
+            l1:     { x: 86, y: 62 },
+            r2:     { x: 3,  y: 30 },
+            r1:     { x: 3,  y: 62 },
+            select: { x: 35.5, y: 6 },
+            start:  { x: 52.5, y: 6 }
+        };
+
+        const dragEls = {};
+        document.querySelectorAll('[data-drag]').forEach(el => { dragEls[el.dataset.drag] = el; });
+
+        function clonePos(p) { return JSON.parse(JSON.stringify(p)); }
+
+        function defaultSizes() {
+            const s = {};
+            for (const id in NAMES) s[id] = 100;
+            return s;
+        }
+
+        function loadLayout() {
+            const base = { pos: clonePos(RIGHT_HANDED), sizes: defaultSizes(), opacity: 100 };
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+                if (saved && saved.pos) {
+                    for (const id in base.pos) {
+                        const p = saved.pos[id];
+                        if (p && isFinite(p.x) && isFinite(p.y)) base.pos[id] = { x: p.x, y: p.y };
+                    }
+                    if (saved.sizes) {
+                        for (const id in base.sizes) {
+                            const s = saved.sizes[id];
+                            if (isFinite(s) && s >= 50 && s <= 200) base.sizes[id] = s;
+                        }
+                    }
+                    if (isFinite(saved.opacity)) base.opacity = saved.opacity;
+                }
+            } catch (e) {}
+            return base;
+        }
+
+        function saveLayout() {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
+        }
+
+        let layout = loadLayout();
+        let selectedId = null;
+
+        function clampPos(el, x, y) {
+            const r = pad.getBoundingClientRect();
+            if (!r.width || !r.height) return { x, y };
+            const maxX = Math.max(0, 100 - (el.offsetWidth / r.width) * 100);
+            const maxY = Math.max(0, 100 - (el.offsetHeight / r.height) * 100);
+            return { x: Math.min(Math.max(x, 0), maxX), y: Math.min(Math.max(y, 0), maxY) };
+        }
+
+        function applyLayout() {
+            pad.style.setProperty('--op', layout.opacity / 100);
+
+            for (const id in dragEls) {
+                dragEls[id].style.setProperty('--k', layout.sizes[id] / 100);
+            }
+            for (const id in dragEls) {
+                const el = dragEls[id];
+                const p = clampPos(el, layout.pos[id].x, layout.pos[id].y);
+                layout.pos[id] = p;
+                el.style.left = p.x + '%';
+                el.style.top = p.y + '%';
+            }
+            opRange.value = layout.opacity;
+            opRange2.value = layout.opacity;
+            fillRange(opRange2);
+            document.getElementById('opVal').textContent = layout.opacity + '%';
+            syncSizeUI();
+        }
+
+        function select(id) {
+            selectedId = id;
+            Object.entries(dragEls).forEach(([k, el]) => el.classList.toggle('selected', k === id));
+            syncSizeUI();
+        }
+
+        function syncSizeUI() {
+            if (selectedId) {
+                sizeRange.disabled = false;
+                sizeRange.value = layout.sizes[selectedId];
+                hint.textContent = `Resizing: ${NAMES[selectedId]}`;
+            } else {
+                sizeRange.disabled = true;
+                sizeRange.value = 100;
+                hint.textContent = 'Drag to move. Tap a button to resize it.';
+            }
+        }
+
+        Object.entries(dragEls).forEach(([id, el]) => {
+            let start = null;
+
+            el.addEventListener('pointerdown', (e) => {
+                if (!editMode) return;
+                e.preventDefault();
+                el.setPointerCapture(e.pointerId);
+                select(id);
+                start = { px: e.clientX, py: e.clientY, x: layout.pos[id].x, y: layout.pos[id].y };
+            });
+
+            el.addEventListener('pointermove', (e) => {
+                if (!start) return;
+                const r = pad.getBoundingClientRect();
+                const nx = start.x + ((e.clientX - start.px) / r.width) * 100;
+                const ny = start.y + ((e.clientY - start.py) / r.height) * 100;
+                const p = clampPos(el, nx, ny);
+                layout.pos[id] = p
+                el.style.left = p.x + '%';
+                el.style.top = p.y + '%';
+            });
+
+            const end = () => {
+                if (start) { start = null; saveLayout(); }
+            };
+            el.addEventListener('pointerup', end);
+            el.addEventListener('pointercancel', end);
+        });
+
+        pad.addEventListener('pointerdown', (e) => {
+            if (editMode && e.target === pad) select(null);
+        });
+
+        const editBtn = document.getElementById('editBtn');
+        const editPanel = document.getElementById('editPanel');
+        const sizeRange = document.getElementById('sizeRange');
+        const opRange = document.getElementById('opRange');
+        const opRange2 = document.getElementById('opRange2');
+        const hint = document.getElementById('hint');
+
+        function setEdit(on) {
+            editMode = on;
+            releaseAll();
+            select(null);
+            pad.classList.toggle('editing', on);
+            editPanel.hidden = !on;
+            editBtn.hidden = on;
+            if (on) setSettings(false);
+        }
+
+        editBtn.addEventListener('click', () => setEdit(true));
+        document.getElementById('doneBtn').addEventListener('click', () => { saveLayout(); setEdit(false); });
+
+        sizeRange.addEventListener('input', () => {
+            if (!selectedId) return;
+            layout.sizes[selectedId] = Number(sizeRange.value);
+            applyLayout();
+        });
+        opRange.addEventListener('input', () => {
+            layout.opacity = Number(opRange.value);
+            applyLayout();
+        });
+        sizeRange.addEventListener('change', saveLayout);
+        opRange.addEventListener('change', saveLayout);
+        opRange2.addEventListener('input', () => {
+            layout.opacity = Number(opRange2.value);
+            applyLayout();
+        });
+        opRange2.addEventListener('change', saveLayout);
+
+        document.getElementById('rightBtn').addEventListener('click', () => {
+            layout.pos = clonePos(RIGHT_HANDED); applyLayout(); saveLayout();
+        });
+        document.getElementById('leftBtn').addEventListener('click', () => {
+            layout.pos = clonePos(LEFT_HANDED); applyLayout(); saveLayout();
+        });
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            layout = { pos: clonePos(RIGHT_HANDED), sizes: defaultSizes(), opacity: 100 };
+            applyLayout(); saveLayout();
+        });
+
+        function onResize() {
+            releaseAll();
+            applyLayout();
+        }
+        window.addEventListener('resize', onResize);
+        window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
+
+        applyLayout();
+    </script>
+</body>
+</html>

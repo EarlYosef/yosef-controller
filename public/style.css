@@ -1,0 +1,490 @@
+:root {
+    /* Base button size. Scales with the screen; tuned for iPhone 11 / 13 in landscape. */
+    --u: clamp(34px, min(8.5vw, 15vh), 80px);
+
+    /* Wuthering Waves palette (sampled from the website screenshot) */
+    --bg: #0a0705;
+    --ink: #0b0b0c;                    /* black store-badge buttons */
+    --ink-2: #141416;
+    --line: rgba(255, 255, 255, 0.28); /* thin light border on badges */
+    --grey: #d4d4d4;                   /* round icon buttons + HOME pill */
+    --grey-2: #b9b9b9;
+    --grey-ink: #3b3b3b;
+    --gold-hi: #fff3c4;
+    --gold: #f2c94c;
+    --gold-mid: #d9a93a;
+    --gold-lo: #8a6420;
+    --ember: #ff9a1f;                  /* orange glow */
+    --crimson: #b3202c;                /* red accent (bottom-right of art) */
+}
+
+/* Use the real visible height on iPhone Safari (the address bar changes it) */
+@supports (height: 100dvh) {
+    :root { --u: clamp(34px, min(8.5vw, 15dvh), 80px); }
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html {
+    height: 100%;
+    overscroll-behavior: none;
+    background: var(--bg);
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: -webkit-fill-available;
+    height: 100dvh;
+    /* keep clear of the iPhone notch and home bar */
+    padding:
+        max(6px, env(safe-area-inset-top))
+        max(10px, env(safe-area-inset-right))
+        max(6px, env(safe-area-inset-bottom))
+        max(10px, env(safe-area-inset-left));
+    overflow: hidden;
+    /* Warm golden burst in the centre, red glow bottom-right, dark edges */
+    background:
+        radial-gradient(ellipse at 50% 30%, rgba(255, 196, 40, 0.55) 0%, rgba(255, 140, 20, 0.25) 35%, transparent 70%),
+        radial-gradient(circle at 92% 95%, rgba(179, 32, 44, 0.55) 0%, transparent 45%),
+        radial-gradient(circle at 5% 90%, rgba(60, 70, 90, 0.35) 0%, transparent 40%),
+        var(--bg);
+    color: #fff;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    text-align: center;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 42px;
+}
+
+/* Title: pale-gold -> gold -> bronze, like the "PRISM'S ILLUSION" logo */
+h2 {
+    margin: 0;
+    font-size: clamp(16px, 2.8vw, 24px);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    font-weight: 900;
+    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 45%, var(--gold-lo) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter:
+        drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9))
+        drop-shadow(0 0 8px rgba(255, 170, 30, 0.45));
+}
+
+/* Status = small gold-trimmed label floating at the top left */
+#status {
+    position: fixed;
+    z-index: 20;
+    top: max(6px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    max-width: 34vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    color: var(--gold);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.78);
+    border: 1px solid rgba(242, 201, 76, 0.55);
+}
+
+/* Phones and tablets: no title bar, the controller gets the whole screen */
+@media (pointer: coarse) {
+    .topbar { display: none; }
+}
+
+/* ---------- Corner menu ---------- */
+#menu {
+    position: fixed;
+    z-index: 25;
+    top: max(6px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+#menuBtn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 18px;
+    transition: transform 0.3s ease, background 0.2s;
+}
+
+#menu.open #menuBtn {
+    transform: rotate(90deg);
+    background: var(--gold);
+    color: #1a1204;
+}
+
+#menuItems {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+#menuItems .tool {
+    white-space: nowrap;
+    background: rgba(11, 11, 12, 0.92);
+    opacity: 0;
+    transform: translateX(24px) scale(0.9);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.25s ease;
+}
+
+#menu.open #menuItems .tool {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+}
+
+/* each button slides in one after the other */
+#menu.open #menuItems .tool:nth-child(2) { transition-delay: 0.05s; }
+#menu.open #menuItems .tool:nth-child(3) { transition-delay: 0.10s; }
+#menu.open #menuItems .tool:nth-child(4) { transition-delay: 0.15s; }
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+}
+
+/* Small toolbar buttons = black store-badge style */
+.tool {
+    background: var(--ink);
+    color: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    touch-action: manipulation;
+}
+
+.tool:active { background: #26262a; }
+
+/* Primary = the light grey "HOME" pill */
+.tool.primary {
+    background: var(--grey);
+    border-color: transparent;
+    border-radius: 999px;
+    color: var(--grey-ink);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+/* ---------- Layout editor ---------- */
+#editPanel {
+    position: fixed;
+    z-index: 30;
+    top: calc(max(6px, env(safe-area-inset-top)) + 46px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(60vw, 460px);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(8, 8, 9, 0.92);
+    border: 1px solid rgba(242, 201, 76, 0.6);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+}
+
+#editPanel .hint {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--gold);
+    text-transform: uppercase;
+}
+
+#editPanel label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+#editPanel input[type="range"] {
+    width: 90px;
+    accent-color: var(--gold);
+    touch-action: manipulation;
+}
+
+#editPanel input[type="range"]:disabled { opacity: 0.35; }
+
+.tool-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    flex-basis: 100%;
+}
+
+.tool-row .tool { padding: 5px 10px; font-size: 11px; }
+
+/* ---------- Controller body: dark glass panel over the glow ---------- */
+.controller-container {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    border-radius: 14px;
+    background:
+        linear-gradient(180deg, rgba(10, 8, 6, 0.55) 0%, rgba(6, 5, 4, 0.82) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.85),
+        inset 0 0 0 1px rgba(242, 201, 76, 0.22),
+        inset 0 0 60px rgba(255, 150, 20, 0.08);
+    touch-action: none;
+    overflow: hidden;
+}
+
+/* Every piece has its own size: --k is that piece's size (1 = normal) */
+.shoulder,
+.pill,
+.dpad,
+.act {
+    --sz: clamp(34px, min(8.5vw, 15vh), 80px) * var(--k, 1);
+}
+
+/* ---------- SHOULDERS (L1 L2 R1 R2) - black badge buttons ---------- */
+.shoulder,
+.pill {
+    position: absolute;
+    padding: 0;
+    opacity: var(--op, 1);
+    color: #fff;
+    font-weight: 800;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+    transition: none;
+}
+
+.shoulder {
+    width: calc(var(--sz) * 1.7);
+    height: calc(var(--sz) * 0.62);
+    font-size: calc(var(--sz) * 0.3);
+    letter-spacing: 1px;
+}
+
+.l1, .r1 { background: var(--ink-2); }
+.l2, .r2 { background: var(--ink); }
+
+.shoulder.touched {
+    transform: none;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold) 55%, var(--gold-mid));
+    border-color: #fff;
+    color: #1a1204;
+}
+
+/* ---------- SELECT / START - light grey pill like the HOME button ---------- */
+.pill {
+    width: calc(var(--sz) * 1.7);
+    height: calc(var(--sz) * 0.55);
+    border-radius: 999px;
+    background: var(--grey);
+    border-color: transparent;
+    color: var(--grey-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--sz) * 0.12);
+    font-size: calc(var(--sz) * 0.2);
+    letter-spacing: 2px;
+}
+
+.pill::before {
+    content: "";
+    flex: 0 0 auto;
+    width: calc(var(--sz) * 0.08);
+    height: calc(var(--sz) * 0.08);
+    border-radius: 50%;
+    background: var(--led);
+}
+
+.select { --led: #38bdf8; }
+.start  { --led: #e0a12a; }
+
+.pill.touched {
+    transform: none;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold));
+    border-color: #fff;
+    color: #1a1204;
+}
+
+/* ---------- D-PAD - black badge segments ---------- */
+.dpad {
+    position: absolute;
+    width: calc(var(--sz) * 3);
+    height: calc(var(--sz) * 3);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+    opacity: var(--op, 1);
+}
+
+.dpad::after {
+    content: "";
+    grid-column: 2;
+    grid-row: 2;
+    background: var(--ink);
+    pointer-events: none;
+}
+
+.dpad button {
+    background: var(--ink);
+    border: 1px solid var(--line);
+    color: #fff;
+    font-size: 0;
+    padding: 0;
+    position: relative;
+}
+
+.dpad button::before {
+    font-size: calc(var(--sz) * 0.38);
+}
+
+.btn-up    { grid-column: 2; grid-row: 1; border-radius: 8px 8px 0 0; }
+.btn-left  { grid-column: 1; grid-row: 2; border-radius: 8px 0 0 8px; }
+.btn-right { grid-column: 3; grid-row: 2; border-radius: 0 8px 8px 0; }
+.btn-down  { grid-column: 2; grid-row: 3; border-radius: 0 0 8px 8px; }
+
+.btn-up::before    { content: "▲"; }
+.btn-left::before  { content: "◀"; }
+.btn-right::before { content: "▶"; }
+.btn-down::before  { content: "▼"; }
+
+.dpad button.touched {
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold) 60%, var(--gold-mid));
+    border-color: #fff;
+    color: #1a1204;
+}
+
+/* ---------- ACTION BUTTONS (X Y A B) - round grey icon buttons ---------- */
+.act {
+    position: absolute;
+    width: calc(var(--sz) * 1.05);
+    height: calc(var(--sz) * 1.05);
+    padding: 0;
+    opacity: var(--op, 1);
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    background: radial-gradient(circle at 35% 30%, #ececec 0%, var(--grey) 45%, var(--grey-2) 100%);
+    color: var(--grey-ink);
+    font-size: calc(var(--sz) * 0.44);
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    transition: none;
+}
+
+.b1, .b2, .b3, .b4 {
+    background: radial-gradient(circle at 35% 30%, #ececec 0%, var(--grey) 45%, var(--grey-2) 100%);
+}
+
+.act.touched {
+    transform: none;
+    background: radial-gradient(circle at 35% 30%, var(--gold-hi) 0%, var(--gold) 55%, var(--gold-mid) 100%);
+    border-color: #fff;
+    color: #1a1204;
+    box-shadow: 0 0 18px rgba(255, 190, 40, 0.7);
+}
+
+/* ---------- Edit mode ---------- */
+.editing .dpad,
+.editing .act,
+.editing .shoulder,
+.editing .pill {
+    opacity: 1;
+    outline: 2px dashed var(--gold);
+    outline-offset: 4px;
+    cursor: grab;
+}
+
+/* the piece you picked: only this one changes size */
+.editing .selected {
+    outline: 3px solid #38bdf8;
+    outline-offset: 5px;
+    z-index: 5;
+}
+
+/* ---------- Rotate hint (phone held upright) ---------- */
+#rotate {
+    display: none;
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+    #rotate {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background:
+            radial-gradient(ellipse at 50% 35%, rgba(255, 196, 40, 0.4) 0%, transparent 65%),
+            var(--bg);
+        color: var(--gold-hi);
+        font-size: 18px;
+        font-weight: 600;
+        padding: 24px;
+    }
+    .rot-icon {
+        font-size: 64px;
+        margin-bottom: 8px;
+        animation: tilt 1.6s ease-in-out infinite;
+    }
+    @keyframes tilt {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(90deg); }
+    }
+}
+
+/* ---------- Short landscape screens (phones held sideways) ---------- */
+@media (max-height: 520px) {
+    h2 { display: none; }
+}
