@@ -47,9 +47,15 @@ function startTunnel() {
 const app = express();
 app.use(express.static(path.join(__dirname, 'admin')));
 const server = http.createServer(app);
-const ORIGINS = new Set([`http://127.0.0.1:${ADMIN_PORT}`, `http://localhost:${ADMIN_PORT}`]);
-// Only the panel page itself may control this (blocks other websites)
-const wss = new WebSocket.Server({ server, verifyClient: ({ origin }) => ORIGINS.has(origin) });
+// Allow local administration as well as Render domain origins
+const wss = new WebSocket.Server({ 
+    server, 
+    verifyClient: ({ origin }) => {
+        if (!origin) return true;
+        if (process.env.RENDER) return true; // Allow WebSocket connections on Render
+        return origin.includes('127.0.0.1') || origin.includes('localhost');
+    } 
+});
 wss.on('error', () => {});   // the clear "port already in use" message below handles this (without it Node prints a long crash instead)
 
 function broadcast(obj) {
