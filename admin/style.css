@@ -162,7 +162,33 @@ button.pause {
     font-weight: 800;
     letter-spacing: 0.5px;
     text-transform: uppercase;
-    color: var(--warn);
+    color: #111;   /* black letters on the yellow button */
+}
+
+button.pause:hover {
+    color: #111;
+}
+
+button.pause.active,
+button.pause.active:hover {
+    color: #fff;   /* white letters on the red "Resume" button */
+}
+
+/* license key box */
+#licKey {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    padding: 11px 14px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--bg);
+    box-shadow: var(--inset);
+    color: var(--tx);
+    font: inherit;
+    font-size: 12px;
+    resize: vertical;
+    outline: none;
 }
 
 /* Driver setup box + link-style button */

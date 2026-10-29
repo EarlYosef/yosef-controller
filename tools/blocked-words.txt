@@ -1,0 +1,3 @@
+# Words that must never show on your stream, one per line.
+# A name that contains one of these becomes "Viewer". Lines starting with # are ignored.
+# Add your own below (this file is read when the controller starts):

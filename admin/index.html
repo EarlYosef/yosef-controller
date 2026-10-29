@@ -49,6 +49,16 @@
         </div>
         <div id="qr"></div>
         <p class="hint">Paste the link in your stream chat, or show the QR code. Viewers open it to get the controller.</p>
+        <p class="hint" id="lanNote" hidden></p>
+    </div>
+
+    <div class="box" id="licBox">
+        <h3>License</h3>
+        <p class="hint" id="licStatus" style="margin-top:0"></p>
+        <div id="licForm">
+            <textarea id="licKey" rows="3" placeholder="Paste your license key here"></textarea>
+            <button id="licBtn">Activate</button>
+        </div>
     </div>
 
     <div class="box" id="overlayBox">
@@ -58,6 +68,12 @@
             <button id="ovlCopy">Copy</button>
         </div>
         <p class="hint">In OBS: Sources, +, Browser, paste this link (1280 x 720). Options to add at the end of the link: ?scale=1.5 (bigger), ?pad=0 (no button display), ?always=1 (button display always visible), ?qr=0 (no QR code), ?next=0 (no waiting list). Join them with &amp;.</p>
+    </div>
+
+    <div class="box" id="supportBox">
+        <h3>Support</h3>
+        <button id="diagBtn">Copy diagnostics for support</button>
+        <p class="hint" id="diagNote">If something does not work, press this and send the text to support.</p>
     </div>
 
     <div id="live" hidden>
@@ -134,6 +150,7 @@
                 <label><input type="checkbox" id="locked"> Lock (no new players)</label>
                 <label><input type="checkbox" id="frozen"> Freeze all input</label>
                 <label class="wide"><input type="checkbox" id="spectate"> Waiting viewers can watch the match</label>
+                <label class="wide"><input type="checkbox" id="lan"> Testing only: also open the controller on my Wi-Fi (Disconnect, then Connect to apply)</label>
                 <label>Join code <input type="text" id="code" maxlength="20" placeholder="none"></label>
                 <label>Max players
                     <select id="max">
@@ -163,7 +180,11 @@ let ws, status = 'offline', link = '', qrLink = '', curId = null, curId3 = null;
 
 function connectPanel() {
     ws = new WebSocket(`ws://${location.host}`);
-    ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'panel') render(m); };
+    ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === 'panel') render(m);
+        else if (m.type === 'diag') copyText(m.text);
+    };
     ws.onclose = () => {
         $('gate').hidden = true;
         $('app').hidden = false;
@@ -184,10 +205,40 @@ function renderDriver(d) {
     if (note) $('setupText').textContent = d.hint;
 }
 
+// copy text to the clipboard (with a fallback for plain http pages)
+async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {
+        const t = document.createElement('textarea');
+        t.value = text; document.body.append(t); t.select(); document.execCommand('copy'); t.remove();
+    }
+    $('diagNote').textContent = 'Copied! Paste it in your message to support.';
+}
+
+function renderLicense(l) {
+    if (!l) return;
+    if (l.valid && !l.dev) {
+        $('licStatus').textContent = 'Licensed' + (l.name ? ' to ' + l.name : '') + (l.expires ? ' until ' + l.expires.slice(0, 10) : ' (lifetime)') + '.';
+        $('licStatus').style.color = '';
+        $('licForm').hidden = true;
+    } else if (l.dev) {
+        $('licStatus').textContent = l.name;
+        $('licStatus').style.color = '';
+        $('licForm').hidden = true;
+    } else {
+        $('licStatus').textContent = l.reason || 'No license yet.';
+        $('licStatus').style.color = '#f0a030';
+        $('licForm').hidden = false;
+    }
+}
+
 function showMsg(text, err) { $('msg').textContent = text; $('msg').className = err ? 'err' : ''; }
 
 function render(m) {
     status = m.status; link = m.link;
+    renderLicense(m.license);
+    $('lanNote').hidden = !m.lanUrl;
+    if (m.lanUrl) $('lanNote').textContent = 'Testing on your Wi-Fi (same network only): ' + m.lanUrl;
     if (m.status !== 'online' && share) stopShare('Stopped: the controller was closed.');
     renderDriver(m.driver);
     const b = $('main');
@@ -207,7 +258,7 @@ function render(m) {
     $('live').hidden = status !== 'online';
 
     const s = m.settings;
-    $('locked').checked = s.locked; $('frozen').checked = s.frozen; $('spectate').checked = s.spectate !== false;
+    $('locked').checked = s.locked; $('frozen').checked = s.frozen; $('spectate').checked = s.spectate !== false; $('lan').checked = !!s.lan;
     if (document.activeElement !== $('gameMode'))$('gameMode').value = s.mode || 'vvw';
     
     if (s.frozen) {
@@ -300,21 +351,21 @@ $('link').onclick = () => $('link').select();
 
 function sendSettings() {
     send({ cmd: 'settings', settings: {
-        locked: $('locked').checked, frozen: $('frozen').checked, spectate: $('spectate').checked,
+        locked: $('locked').checked, frozen: $('frozen').checked, spectate: $('spectate').checked, lan: $('lan').checked,
         code: $('code').value, turnSeconds: Number($('turn').value) || 0,
         maxPlayers: Number($('max').value) || 0,
         mode: $('gameMode').value
     }});
 }
-['locked', 'frozen', 'code', 'turn', 'max', 'gameMode'].forEach(id => $(id).addEventListener('change', sendSettings));
+['locked', 'frozen', 'code', 'turn', 'max', 'gameMode', 'spectate', 'lan'].forEach(id => $(id).addEventListener('change', sendSettings));
 
 // ---------- Share my screen ----------
 const QUALITY = {
     low:     { w: 480,  q: 0.5,  fps: 30 },
     med:     { w: 720,  q: 0.65, fps: 30 },
     high:    { w: 1280, q: 0.72, fps: 30 },
-    ultra:   { w: 1380, q: 0.74, fps: 60 },
-    highest: { w: 1920, q: 0.78, fps: 60 }
+    ultra:   { w: 1380, q: 0.74, fps: 30 },
+    highest: { w: 1920, q: 0.78, fps: 30 }
 };
 let share = null;   
 
@@ -687,6 +738,8 @@ function stopShare(note, bad) {
 }
 
 $('findSound').onclick = findSoundSources;
+$('licBtn').onclick = () => send({ cmd: 'license', token: $('licKey').value });
+$('diagBtn').onclick = () => send({ cmd: 'diag' });
 $('shareBtn').onclick = () => (share ? stopShare('Stopped sharing.') : startShare());
 
 connectPanel();

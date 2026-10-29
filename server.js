@@ -115,9 +115,20 @@ function wsSend(ws, obj) {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
+// Words you do not want on your stream: put them in blocked-words.txt (one per line). Names show on the OBS overlay.
+let blockedWords = [];
+try {
+    blockedWords = fs.readFileSync(path.join(__dirname, 'blocked-words.txt'), 'utf8')
+        .split(/\r?\n/).map((w) => w.trim().toLowerCase()).filter((w) => w && !w.startsWith('#'));
+} catch (e) { /* no list yet */ }
+
 function cleanName(s) {
     const n = String(s || '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 20);
-    return n || 'Viewer';
+    const flat = n.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!n || /https?|www|\.(com|net|org|ph|io|gg|tv|me|co|ly)\b/i.test(String(s || '')) || blockedWords.some((w) => flat.includes(w.replace(/[^a-z0-9]/g, '')))) {
+        return 'Viewer';   // links, advertising and blocked words never reach your stream
+    }
+    return n;
 }
 
 // Behind the public link, the real address of a viewer is in these headers
@@ -334,6 +345,13 @@ wss.on('connection', (ws, req) => {
         ws.close();
         return;
     }
+    let sameAddress = 0;
+    for (const o of clients.values()) if (o.ip === ip) sameAddress++;
+    if (sameAddress >= 10) {   // protects against one person opening hundreds of tabs
+        wsSend(ws, { role: 'denied', reason: 'Too many connections from your network.' });
+        ws.close();
+        return;
+    }
 
     const c = { id: nextId++, name: 'Viewer', joined: false, ip, msgs: 0, inflight: 0, sentSeq: -1, lastAck: 0, rtcOk: false, sentAt: [], rtt: 0 };
     clients.set(ws, c);
@@ -485,6 +503,7 @@ function handleAdmin(msg) {
         case 'kick': {
             const ws = findClient(msg.id);
             if (ws) {
+                console.log((msg.ban ? 'Banned ' : 'Kicked ') + (clients.get(ws) || {}).name);
                 if (msg.ban) { const k = clients.get(ws); bannedIPs.set(k.ip, k.name); saveBans(); }
                 wsSend(ws, { role: msg.ban ? 'banned' : 'kicked' });
                 removeClient(ws, false);
@@ -570,12 +589,15 @@ server.on('error', (err) => {
     process.exit(1);
 });
 
-const PORT = process.env.PORT || VIEWER_PORT;
-
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Controller server running on port ${PORT}.`);
+// Private by default: only this computer (where the tunnel runs) can reach the server, so nobody on your
+// Wi-Fi can walk around the tunnel. For testing from a phone on your Wi-Fi, tick "open on my Wi-Fi" in the admin page.
+const HOST = process.env.LAN === '1' ? '0.0.0.0' : '127.0.0.1';
+server.listen(VIEWER_PORT, HOST, () => {
+    console.log(`Controller server running on port ${VIEWER_PORT}` + (HOST === '0.0.0.0' ? ' (open on your Wi-Fi).' : '.'));
     if (process.send) process.send({ type: 'ready' });
 });
+
+process.on('uncaughtException', (err) => { console.error('Server crashed:', err && err.stack || err); process.exit(1); });
 
 function shutdown() { process.exit(0); }
 process.on('SIGINT', shutdown);
