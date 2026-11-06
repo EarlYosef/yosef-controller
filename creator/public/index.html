@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creator Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Sign in -->
+<div class="login card" id="loginView" hidden>
+    <h1>Creator</h1>
+    <input type="password" id="pw" placeholder="Dashboard password" autocomplete="current-password">
+    <button class="main" id="loginBtn">Sign in</button>
+    <div class="err" id="loginErr"></div>
+</div>
+
+<!-- Dashboard -->
+<div class="wrap" id="app" hidden>
+    <h1>Creator Dashboard</h1>
+
+    <div class="warnbar" id="warnStorage" hidden>
+        Licenses are saved in a file, and Render erases files when it restarts. Add the free Upstash database
+        (UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN) before you give out real licenses.
+    </div>
+    <div class="warnbar" id="warnKey" hidden>No private key on this server yet, so licenses cannot be made (LICENSE_PRIVATE_KEY_B64).</div>
+
+    <div class="cards card">
+        <div class="box"><div class="num" id="sActive">0</div><div class="lbl">Active licenses</div></div>
+        <div class="box"><div class="num" id="sOnline">0</div><div class="lbl">Online right now</div></div>
+        <div class="box"><div class="num" id="sPlayers">0</div><div class="lbl">Players playing now</div></div>
+        <div class="box"><div class="num" id="sConnected">0</div><div class="lbl">Viewers connected now</div></div>
+    </div>
+
+    <div class="card">
+        <h3>New license</h3>
+        <div class="row">
+            <input type="email" id="email" placeholder="Customer email (for example name@gmail.com)">
+            <select id="duration">
+                <option value="1m">1 month</option>
+                <option value="3m">3 months</option>
+                <option value="1y">1 year</option>
+                <option value="unlimited">Unlimited</option>
+            </select>
+            <button class="main" id="createBtn">Create license</button>
+        </div>
+        <div class="err" id="createErr"></div>
+        <div id="newBox" hidden>
+            <div class="hint">Give this key to the customer. It also stays in the list below.</div>
+            <div class="row"><input id="newKey" readonly><button id="copyNew">Copy</button></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Licenses</h3>
+        <div class="tablewrap">
+            <table>
+                <thead><tr><th>Customer</th><th>Ends</th><th>Status</th><th>Now</th><th></th></tr></thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+        <div class="hint" id="emptyNote" hidden>No licenses yet.</div>
+        <div class="hint">A license that ended disappears from this list after 7 days. Disable switches a customer off within about 10 minutes. Delete removes it for good.</div>
+    </div>
+
+    <div style="text-align:center"><button id="logoutBtn">Sign out</button></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function api(path, method, body) {
+    const r = await fetch(path, { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    return { ok: r.ok, status: r.status, ...j };
+}
+
+function show(signedIn) {
+    $('loginView').hidden = signedIn;
+    $('app').hidden = !signedIn;
+    if (signedIn) refresh();
+}
+
+async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) { const t = document.createElement('textarea'); t.value = text; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+    const old = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = old; }, 1400);
+}
+
+const fmtDate = (s) => (s ? s.slice(0, 10) : 'Unlimited');
+function ago(t) {
+    if (!t) return 'never';
+    const s = Math.round((Date.now() - t) / 1000);
+    return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
+}
+
+async function refresh() {
+    const d = await api('/api/licenses');
+    if (d.status === 401) return show(false);
+    $('warnStorage').hidden = !!d.permanent;
+    $('warnKey').hidden = !!d.canSign;
+    $('sActive').textContent = d.summary.active;
+    $('sOnline').textContent = d.summary.online;
+    $('sPlayers').textContent = d.summary.players;
+    $('sConnected').textContent = d.summary.connected;
+    $('emptyNote').hidden = d.licenses.length > 0;
+
+    const body = $('rows'); body.textContent = '';
+    d.licenses.forEach((r) => {
+        const tr = document.createElement('tr');
+        const cell = (node) => { const td = document.createElement('td'); td.append(node); tr.append(td); return td; };
+        cell(document.createTextNode(r.email));
+        cell(document.createTextNode(fmtDate(r.expires)));
+        const pill = document.createElement('span'); pill.className = 'pill ' + r.status; pill.textContent = r.status;
+        cell(pill);
+        const now = document.createElement('span');
+        const dot = document.createElement('span'); dot.className = 'dot' + (r.online ? ' on' : '');
+        now.append(dot, document.createTextNode(r.online
+            ? `online, ${(r.info && r.info.players) || 0} playing, ${(r.info && r.info.connected) || 0} viewers`
+            : 'last seen ' + ago(r.lastSeen)));
+        cell(now);
+        const act = document.createElement('div'); act.style.whiteSpace = 'nowrap';
+        const mk = (label, fn, cls) => { const b = document.createElement('button'); b.className = 'small ' + (cls || ''); b.textContent = label; b.onclick = fn; act.append(b); };
+        mk('Copy key', (e) => copy(r.token, e.target));
+        mk(r.status === 'disabled' ? 'Enable' : 'Disable', async () => { await api(`/api/licenses/${r.id}/toggle`, 'POST'); refresh(); });
+        mk('Delete', async () => { if (confirm('Delete the license of ' + r.email + '? Their program stops working.')) { await api(`/api/licenses/${r.id}`, 'DELETE'); refresh(); } }, 'danger');
+        cell(act);
+        body.append(tr);
+    });
+}
+
+$('loginBtn').onclick = async () => {
+    const r = await api('/login', 'POST', { password: $('pw').value });
+    if (r.ok) { $('pw').value = ''; $('loginErr').textContent = ''; show(true); } else $('loginErr').textContent = r.error || 'Could not sign in.';
+};
+$('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = async () => { await api('/logout', 'POST'); show(false); };
+
+$('createBtn').onclick = async () => {
+    $('createErr').textContent = '';
+    const r = await api('/api/licenses', 'POST', { email: $('email').value, duration: $('duration').value });
+    if (!r.ok) { $('createErr').textContent = r.error || 'Could not create the license.'; return; }
+    $('newKey').value = r.license.token; $('newBox').hidden = false; $('email').value = '';
+    refresh();
+};
+$('copyNew').onclick = (e) => copy($('newKey').value, e.target);
+
+(async () => { const me = await api('/api/me'); show(!!me.signedIn); })();
+setInterval(() => { if (!$('app').hidden) refresh(); }, 15000);
+</script>
+</body>
+</html>

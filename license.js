@@ -15,6 +15,11 @@ const path = require('path');
 
 const PUBLIC_KEY_PEM = '';   // paste the contents of public.pem here when you release
 const LICENSE_FILE = path.join(__dirname, 'license.json');
+// The address of YOUR creator dashboard on Render, for example 'https://yosef-creator.onrender.com'.
+// With it, a license you Disable or Delete stops working within about 10 minutes, and you can see who is online.
+// Leave it empty and licenses work fully offline.
+const CREATOR_URL = process.env.CREATOR_URL || 'https://yosef-controller.onrender.com';
+const MUST_CHECK_IN_MS = 14 * 86400000;   // with a dashboard set, the program must reach it at least every 14 days
 
 function publicKey() {
     if (PUBLIC_KEY_PEM.trim()) return PUBLIC_KEY_PEM;
@@ -42,12 +47,48 @@ function verifyToken(token, key) {
 function check() {
     const key = publicKey();
     if (!key) return { valid: true, dev: true, plan: 'developer', name: 'Developer copy (no license key is set up yet)' };
-    let token = '';
-    try { token = JSON.parse(fs.readFileSync(LICENSE_FILE, 'utf8')).token; } catch (e) {}
+    const saved = readSaved();
+    const token = saved.token || '';
     if (!token) return { valid: false, plan: 'trial', reason: 'No license yet. Trial: each session lasts 30 minutes.' };
     const r = verifyToken(token, key);
     if (!r.ok) return { valid: false, plan: 'trial', reason: r.reason };
-    return { valid: true, plan: r.data.plan || 'standard', name: r.data.name || '', expires: r.data.expires || '' };
+    if (CREATOR_URL && saved.lastOk && Date.now() - saved.lastOk > MUST_CHECK_IN_MS) {
+        return { valid: false, plan: 'trial', reason: 'Connect to the internet once so the license can be confirmed.' };
+    }
+    return { valid: true, plan: r.data.plan || 'standard', name: r.data.name || '', expires: r.data.expires || '', id: r.data.id || '' };
+}
+
+function readSaved() {
+    try { return JSON.parse(fs.readFileSync(LICENSE_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+}
+
+// ask the dashboard: 'ok', 'revoked' (switched off or deleted), 'expired', 'invalid', or 'offline' (could not reach it)
+async function online() {
+    const saved = readSaved();
+    if (!CREATOR_URL || !saved.token) return 'ok';
+    try {
+        const r = await fetch(CREATOR_URL + '/api/check', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: saved.token }),
+            signal: AbortSignal.timeout(65000)   // a sleeping Render server needs about a minute to wake up
+        });
+        const st = (await r.json()).status || 'offline';
+        if (st === 'ok') { try { fs.writeFileSync(LICENSE_FILE, JSON.stringify({ ...saved, lastOk: Date.now() })); } catch (e) {} }
+        return st;
+    } catch (e) { return 'offline'; }
+}
+
+// tell the dashboard this copy is running (how many players, how many viewers)
+async function ping(info) {
+    const saved = readSaved();
+    if (!CREATOR_URL || !saved.token) return;
+    try {
+        await fetch(CREATOR_URL + '/api/ping', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: saved.token, info }),
+            signal: AbortSignal.timeout(20000)
+        });
+    } catch (e) { /* the dashboard is asleep or unreachable: ignore */ }
 }
 
 function activate(token) {
@@ -55,8 +96,8 @@ function activate(token) {
     if (!key) return { valid: true, dev: true, plan: 'developer', name: 'Developer copy (no license key is set up yet)' };
     const r = verifyToken(token, key);
     if (!r.ok) return { valid: false, plan: 'trial', reason: r.reason };
-    try { fs.writeFileSync(LICENSE_FILE, JSON.stringify({ token: String(token).trim() })); } catch (e) {}
+    try { fs.writeFileSync(LICENSE_FILE, JSON.stringify({ token: String(token).trim(), lastOk: Date.now() })); } catch (e) {}
     return check();
 }
 
-module.exports = { check, activate, verifyToken };
+module.exports = { check, activate, verifyToken, online, ping };

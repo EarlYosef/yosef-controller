@@ -39,6 +39,28 @@ function log(...parts) {
 }
 log('admin.js started, version', VERSION, process.platform, 'node', process.version);
 
+// Ask the creator dashboard whether this license is still switched on (needs CREATOR_URL in license.js)
+async function checkRemote() {
+    if (!lic.valid || lic.dev) return;
+    const st = await license.online();
+    if (st === 'revoked' || st === 'expired' || st === 'invalid') {
+        lic = { valid: false, plan: 'trial', reason: st === 'revoked' ? 'This license was switched off. Contact support.' : 'This license is not valid any more.' };
+        log('License check says:', st);
+        push();
+        if (status === 'online') disconnect('The license was switched off. Contact support.');
+    } else if (st === 'ok') {
+        lic = license.check();   // a normal check-in also resets the 14-day timer
+    }
+}
+setTimeout(checkRemote, 3000);
+setInterval(checkRemote, 10 * 60 * 1000);
+setInterval(() => {
+    if (lic.valid && !lic.dev) {
+        const s = serverState || {};
+        license.ping({ status, players: s.players || 0, connected: s.connected || 0, version: VERSION });
+    }
+}, 60000);
+
 function lanAddress() {
     for (const list of Object.values(os.networkInterfaces())) {
         for (const a of list) if (a.family === 'IPv4' && !a.internal) return a.address;
@@ -120,7 +142,7 @@ wss.on('connection', (ws) => {
         else if (m.cmd === 'license') {
             lic = license.activate(String(m.token || ''));
             log('License:', lic.valid ? 'valid (' + (lic.name || lic.plan) + ')' : lic.reason);
-            if (lic.valid) clearTimeout(trialTimer);
+            if (lic.valid) { clearTimeout(trialTimer); checkRemote(); }
             push();
         }
         else if (m.cmd === 'disconnect') disconnect('Disconnected. The controller is closed.');
