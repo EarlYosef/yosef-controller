@@ -88,14 +88,8 @@
                 <span id="cur">Nobody is playing</span>
                 <span><button id="skip">Skip</button></span>
             </div>
-            <div class="who">
-                <span id="p2name">Player 2: nobody</span>
-                <span><button id="curKick">Kick</button><button id="curBan">Ban</button></span>
-            </div>
-            <div class="who" id="p3row">
-                <span id="p3name">Player 3: nobody</span>
-                <span><button id="p3Kick">Kick</button><button id="p3Ban">Ban</button></span>
-            </div>
+            <!-- CHANGED: one row per player, made by the render() function below (1 to 4 rows) -->
+            <div id="playerRows"></div>
             <div id="queue"></div>
             <p class="hint" id="count"></p>
             <p class="warn" id="padWarn" hidden>The virtual gamepad (pad.py) is not running. Run admin.js with sudo or fix uinput permission.</p>
@@ -143,8 +137,11 @@
             <div class="opts">
                 <label>Match Mode
                     <select id="gameMode">
-                        <option value="vvw">Viewer vs Viewer (2P)</option>
-                        <option value="svv">Streamer vs Viewer (1P)</option>
+                        <!-- CHANGED: 4 modes -->
+                        <option value="svv">Streamer vs Viewer (1 viewer)</option>
+                        <option value="vvw">Viewer vs Viewer (2 viewers)</option>
+                        <option value="v3">3 viewers play</option>
+                        <option value="v4">4 viewers play</option>
                     </select>
                 </label>
                 <label><input type="checkbox" id="locked"> Lock (no new players)</label>
@@ -176,7 +173,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-let ws, status = 'offline', link = '', qrLink = '', curId = null, curId3 = null;
+let ws, status = 'offline', link = '', qrLink = '';
 
 function connectPanel() {
     ws = new WebSocket(`ws://${location.host}`);
@@ -196,8 +193,8 @@ function connectPanel() {
 const send = (o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
 
 function renderDriver(d) {
-    const needDriver = !!(d && !d.ok && d.platform === 'win32');   
-    const note = !!(d && !d.ok && d.platform !== 'win32');         
+    const needDriver = !!(d && !d.ok && d.platform === 'win32');
+    const note = !!(d && !d.ok && d.platform !== 'win32');
     $('gate').hidden = !needDriver;
     $('app').hidden = needDriver;
     $('setupBox').hidden = !note;
@@ -247,8 +244,9 @@ function render(m) {
     b.disabled = status === 'starting' || status === 'stopping';
     showMsg(m.message, status === 'offline' && /not|stopp|took|Port|in use/i.test(m.message));
 
-    $('linkBox').hidden = !(status === 'online' && link);$('link').value = link;
-    if (link !== qrLink) {                       
+    $('linkBox').hidden = !(status === 'online' && link);
+    $('link').value = link;
+    if (link !== qrLink) {
         qrLink = link;
         $('qr').textContent = '';
         if (link && window.QRCode) {
@@ -259,19 +257,19 @@ function render(m) {
 
     const s = m.settings;
     $('locked').checked = s.locked; $('frozen').checked = s.frozen; $('spectate').checked = s.spectate !== false; $('lan').checked = !!s.lan;
-    if (document.activeElement !== $('gameMode'))$('gameMode').value = s.mode || 'vvw';
-    
+    if (document.activeElement !== $('gameMode')) $('gameMode').value = s.mode || 'vvw';
+
     if (s.frozen) {
-        $('pauseBtn').classList.add('active');$('pauseBtn').style.background = '#ef4444';
+        $('pauseBtn').classList.add('active'); $('pauseBtn').style.background = '#ef4444';
         $('pauseBtn').textContent = '▶ Resume Match';
     } else {
-        $('pauseBtn').classList.remove('active');$('pauseBtn').style.background = '#eab308';
+        $('pauseBtn').classList.remove('active'); $('pauseBtn').style.background = '#eab308';
         $('pauseBtn').textContent = '⏸ Pause / Freeze Match';
     }
 
-    if (document.activeElement !== $('code'))$('code').value = s.code;
-    if (document.activeElement !== $('turn'))$('turn').value = s.turnSeconds;
-    if (document.activeElement !== $('max'))$('max').value = s.maxPlayers;
+    if (document.activeElement !== $('code')) $('code').value = s.code;
+    if (document.activeElement !== $('turn')) $('turn').value = s.turnSeconds;
+    if (document.activeElement !== $('max')) $('max').value = s.maxPlayers;
 
     const st = m.state;
     if (!st) return;
@@ -279,18 +277,27 @@ function render(m) {
     $('cur').textContent = st.current
         ? `Match: ${st.current.name}` + (st.current.secondsLeft != null ? ` (${st.current.secondsLeft}s left)` : '')
         : 'Waiting for players';
-    
-    const requiredQueue = (s.mode === 'svv') ? 1 : 2;
-    $('skip').disabled = st.queue.length < requiredQueue;
-    curId = st.p2 ? st.p2.id : null;
-    curId3 = st.p3 ? st.p3.id : null;
+
+    // CHANGED: Skip needs as many waiting viewers as there are player slots in this mode
+    const count = { svv: 1, vvw: 2, v3: 3, v4: 4 }[s.mode] || 2;
+    $('skip').disabled = st.queue.length < count;
+
     const inputNote = (p) => !p ? '' : p.idle === null ? ' · no button pressed yet'
         : p.idle < 3 ? ' · buttons arriving ✓' : ` · last button ${p.idle}s ago`;
-    $('p2name').textContent = 'Player 2: ' + (st.p2 ? st.p2.name + inputNote(st.p2) : 'nobody');
-    $('p3name').textContent = 'Player 3: ' + (st.p3 ? st.p3.name + inputNote(st.p3) : 'nobody');
-    $('p3row').hidden = s.mode === 'svv';
-    $('curKick').disabled = $('curBan').disabled = curId === null;
-    $('p3Kick').disabled = $('p3Ban').disabled = curId3 === null;
+
+    // CHANGED: one row per player slot, each with its own Kick and Ban buttons
+    const rows = $('playerRows'); rows.textContent = '';
+    (st.slots || []).forEach((p, i) => {
+        const row = document.createElement('div'); row.className = 'who';
+        const label = document.createElement('span');
+        label.textContent = `Player ${i + 2}: ` + (p ? p.name + inputNote(p) : 'nobody');
+        const kick = document.createElement('button'); kick.textContent = 'Kick'; kick.disabled = !p;
+        kick.onclick = () => { if (p) send({ cmd: 'kick', id: p.id }); };
+        const ban = document.createElement('button'); ban.textContent = 'Ban'; ban.disabled = !p;
+        ban.onclick = () => { if (p) send({ cmd: 'kick', id: p.id, ban: true }); };
+        const act = document.createElement('span'); act.append(kick, ban);
+        row.append(label, act); rows.append(row);
+    });
 
     const bl = $('blocked'); bl.textContent = '';
     st.banned.forEach((p) => {
@@ -319,10 +326,8 @@ function render(m) {
 }
 
 $('main').onclick = () => send({ cmd: status === 'online' ? 'disconnect' : 'connect' });
-$('skip').onclick = () => send({ cmd: 'skip' });$('curKick').onclick = () => { if (curId !== null) send({ cmd: 'kick', id: curId }); };
-$('curBan').onclick = () => { if (curId !== null) send({ cmd: 'kick', id: curId, ban: true }); };
-$('p3Kick').onclick = () => { if (curId3 !== null) send({ cmd: 'kick', id: curId3 }); };
-$('p3Ban').onclick = () => { if (curId3 !== null) send({ cmd: 'kick', id: curId3, ban: true }); };$('unbanAll').onclick = () => send({ cmd: 'unban' });
+$('skip').onclick = () => send({ cmd: 'skip' });
+$('unbanAll').onclick = () => send({ cmd: 'unban' });
 
 $('pauseBtn').onclick = () => {
     const isFrozen = $('frozen').checked;
@@ -367,7 +372,7 @@ const QUALITY = {
     ultra:   { w: 1380, q: 0.74, fps: 30 },
     highest: { w: 1920, q: 0.78, fps: 30 }
 };
-let share = null;   
+let share = null;
 
 function workerMain() {
     let ws, canvas, ctx, opts, busy = false, last = 0, sent = 0, bytes = 0, lastPreview = 0;
@@ -471,7 +476,7 @@ async function offerToPlayer() {
     const offer = await conn.createOffer();
     await conn.setLocalDescription(offer);
     sigWs.send(JSON.stringify({ rtc: 'offer', sdp: conn.localDescription.sdp }));
-    try {   
+    try {
         const p = sender.getParameters();
         if (!p.encodings || !p.encodings.length) p.encodings = [{}];
         const h = track.getSettings().height || 1080;
@@ -645,7 +650,7 @@ function feedReady() {
     });
 }
 
-function keepAwake() {   
+function keepAwake() {
     try {
         const ac = new (window.AudioContext || window.webkitAudioContext)();
         const o = ac.createOscillator(), g = ac.createGain();
@@ -689,7 +694,7 @@ async function startShare() {
     catch (e) { setShareInfo('Sharing was cancelled.'); return; }
     const track = stream.getVideoTracks()[0];
     share = { stream };
-    track.addEventListener('ended', () => stopShare('Sharing ended.'));   
+    track.addEventListener('ended', () => stopShare('Sharing ended.'));
     keepAwake();
     startSound(stream);
     if (window.MediaStreamTrackProcessor && window.Worker) {
@@ -697,7 +702,7 @@ async function startShare() {
         const processor = new MediaStreamTrackProcessor({ track });
         worker.onmessage = (e) => {
             if (!share) return;
-            if (e.data.preview) {            
+            if (e.data.preview) {
                 const img = $('sharePreview'), old = img.src;
                 img.src = URL.createObjectURL(e.data.preview);
                 img.hidden = false;

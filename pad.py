@@ -1,8 +1,10 @@
 import sys
 
 # server.js sends lines like "PRESS A" / "RELEASE UP" on stdin.
-# Player 3's buttons arrive with a "P3_" in front (for example "PRESS P3_UP") and go to a second pad.
-# Each OS gets its own way to turn those into game input.
+# Player 2 sends plain names. Players 3, 4 and 5 have a prefix: "P3_", "P4_", "P5_" (for example "PRESS P4_UP").
+# Each player gets their own virtual gamepad.
+
+PAD_COUNT = 4   # Player 2, 3, 4, 5. If your game gets confused by extra controllers, lower this number.
 
 
 def make_linux_pad():
@@ -86,7 +88,7 @@ def setup_mac():
     # macOS has no common virtual-gamepad driver, so this presses keyboard keys instead.
     # Needs:  pip3 install pynput   and  System Settings > Privacy & Security > Accessibility
     # Change the keys below to match the game's keyboard controls.
-    # Only Player 2 works on macOS (one keyboard); Player 3's buttons are ignored.
+    # Only Player 2 works on macOS (one keyboard); the other players' buttons are ignored.
     from pynput.keyboard import Controller, Key
 
     kb = Controller()
@@ -106,18 +108,19 @@ def setup_mac():
         else:
             kb.release(key)
 
-    return send, (lambda button, down: None)
+    return send
 
 
 def main():
     try:
         if sys.platform.startswith('linux'):
-            # two pads, so a game sees "player 1" and "player 2" controllers
-            send_p2, send_p3 = make_linux_pad(), make_linux_pad()
+            # one pad per player, so a game sees controller 1, 2, 3 and 4
+            senders = [make_linux_pad() for _ in range(PAD_COUNT)]
         elif sys.platform == 'win32':
-            send_p2, send_p3 = make_windows_pad(), make_windows_pad()
+            senders = [make_windows_pad() for _ in range(PAD_COUNT)]
         elif sys.platform == 'darwin':
-            send_p2, send_p3 = setup_mac()
+            ignore = lambda button, down: None
+            senders = [setup_mac()] + [ignore] * (PAD_COUNT - 1)
         else:
             sys.exit(f"Unsupported system: {sys.platform}")
     except ImportError as err:
@@ -130,11 +133,15 @@ def main():
         if len(parts) != 2:
             continue
         action, button = parts
-        send = send_p2
-        if button.startswith('P3_'):
-            send = send_p3
+
+        # "P3_UP" -> pad 1 (Player 3), "P4_UP" -> pad 2, "P5_UP" -> pad 3. No prefix = pad 0 (Player 2).
+        index = 0
+        if len(button) > 3 and button[0] == 'P' and button[2] == '_' and button[1] in '345':
+            index = int(button[1]) - 2
             button = button[3:]
-        send(button, action == 'PRESS')
+
+        if index < len(senders):
+            senders[index](button, action == 'PRESS')
 
 
 if __name__ == '__main__':

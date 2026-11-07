@@ -14,6 +14,7 @@ const VIEWER_PORT = 3000;    // must match server.js
 const CLOUDFLARED = process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared';
 const VERSION = '1.0.0';
 const TRIAL_MS = 30 * 60 * 1000;   // without a license, one session lasts 30 minutes
+const MODES = ['svv', 'vvw', 'v3', 'v4'];   // 1, 2, 3 or 4 viewers play at the same time
 
 let status = 'offline';      // offline | starting | online | stopping
 let message = 'Press Connect to open the controller.';
@@ -153,7 +154,7 @@ wss.on('connection', (ws) => {
                 turnSeconds: Number(m.settings.turnSeconds) || 0,
                 frozen: !!m.settings.frozen,
                 maxPlayers: Number(m.settings.maxPlayers) || 0,
-                mode: m.settings.mode === 'svv' ? 'svv' : 'vvw',
+                mode: MODES.includes(m.settings.mode) ? m.settings.mode : 'vvw',   // CHANGED: 4 modes instead of 2
                 spectate: m.settings.spectate !== false,
                 lan: !!m.settings.lan
             };

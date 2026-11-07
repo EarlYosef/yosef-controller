@@ -44,23 +44,25 @@ function handleInput(ws, { button, action }) {
     if (settings.frozen) return; // Block all inputs when paused
     if (!VALID_BUTTONS.has(button)) return;
     if (action !== 'press' && action !== 'release') return;
-    
-    // Route inputs depending on whether it's Player 2 or Player 3
-    let padPrefix = '';
-    if (ws === currentP3) {
-        padPrefix = 'P3_'; 
-    }
+
+    // Slot 0 = Player 2 (no prefix), slot 1 = Player 3 ("P3_"), slot 2 = Player 4 ("P4_"), slot 3 = Player 5 ("P5_")
+    const slot = slots.indexOf(ws);
+    const padPrefix = slot > 0 ? `P${slot + 2}_` : '';
     padSend(action === 'press' ? 'PRESS' : 'RELEASE', padPrefix + button);
 }
 
 function releaseAll() {
     VALID_BUTTONS.forEach(b => {
         padSend('RELEASE', b);
-        padSend('RELEASE', 'P3_' + b);
+        for (let i = 1; i < MAX_SLOTS; i++) padSend('RELEASE', `P${i + 2}_` + b);
     });
 }
 
-/* ================= Who can play (P2 & P3 support + Match Mode) ================= */
+/* ================= Who can play (up to 4 viewers + Match Mode) ================= */
+
+// How many viewers play at the same time in each mode
+const MODE_SLOTS = { svv: 1, vvw: 2, v3: 3, v4: 4 };
+const MAX_SLOTS = 4;
 
 // The streamer panel (admin.js) sends these. Without it, these defaults are used.
 const settings = {
@@ -69,9 +71,11 @@ const settings = {
     turnSeconds: 180,   // 0 = no time limit; otherwise the player rotates when others are waiting
     frozen: false,      // true = all inputs are ignored (emergency stop / pause)
     maxPlayers: 0,      // 0 = unlimited; otherwise the game locks itself when this many have joined
-    mode: 'vvw',        // 'vvw' = Viewer vs Viewer (2 players), 'svv' = Streamer vs Viewer (1 player)
+    mode: 'vvw',        // 'svv' = 1 viewer, 'vvw' = 2 viewers, 'v3' = 3 viewers, 'v4' = 4 viewers
     spectate: true      // viewers waiting in line can watch the match (a small, light picture)
 };
+
+function slotCount() { return MODE_SLOTS[settings.mode] || 2; }
 
 const clients = new Map();   // ws -> { id, name, joined, ip, msgs }
 const waiting = [];          // ws objects waiting for a turn, in order
@@ -86,21 +90,28 @@ function saveBans() {
 }
 // People who lost connection: they keep their place in line for 30 seconds (token -> place)
 const recent = new Map();
-let currentP2 = null;        // Active Player 2 slot
-let currentP3 = null;        // Active Player 3 slot
+const slots = [null, null, null, null];   // the players now: [Player 2, Player 3, Player 4, Player 5]
 let currentSince = 0;
 let nextId = 1;
 let lastClosed = false;      // was the game closed to new players at the last check?
 let shareWs = null;          // the admin page while it is sharing the screen
 const MAX_INFLIGHT = 3;      // pictures allowed on their way to the player at once
 let signalWs = null;
-let audioWs = null;          // the admin page while it is sending game sound         // the admin page's line for setting up the fast video link
+let audioWs = null;          // the admin page while it is sending game sound
 let latest = null;           // the newest picture from the admin page
 let latestSeq = 0;
 let latestSpec = null;       // the newest SMALL picture, for the people watching from the waiting line
 let latestSpecSeq = 0;
 const MAX_SPECTATORS = 5;    // how many waiting viewers receive the picture (each one costs your upload)
 let delivered = 0, dropped = 0;
+
+// The viewers who are playing right now (only as many as the mode allows)
+function playersNow() { return slots.slice(0, slotCount()).filter(Boolean); }
+function isPlayer(ws) { return slots.indexOf(ws) >= 0; }
+function freeSlot() {
+    for (let i = 0; i < slotCount(); i++) if (!slots[i]) return i;
+    return -1;
+}
 
 function joinedCount() {
     let n = 0;
@@ -139,44 +150,38 @@ function clientIP(req) {
 }
 
 function secondsLeft() {
-    const activeCount = settings.mode === 'svv' ? !!currentP2 : (!!currentP2 || !!currentP3);
-    if (!activeCount || !settings.turnSeconds || waiting.length === 0) return null;
+    if (!playersNow().length || !settings.turnSeconds || waiting.length === 0) return null;
     return Math.max(0, settings.turnSeconds - Math.floor((Date.now() - currentSince) / 1000));
 }
 
+// Put waiting viewers into the free player slots
 function fillSlot() {
-    if (!settings.frozen) {
-        if (!currentP2 && waiting.length) {
-            currentP2 = waiting.shift();
-            currentSince = Date.now();
-        }
-        // Only fill P3 slot if mode is Viewer vs Viewer ('vvw')
-        if (settings.mode === 'vvw' && !currentP3 && waiting.length) {
-            currentP3 = waiting.shift();
-        }
+    if (settings.frozen) return;
+    const before = playersNow().length;
+    for (let i = 0; i < slotCount(); i++) {
+        if (!slots[i] && waiting.length) slots[i] = waiting.shift();
     }
+    if (!before && playersNow().length) currentSince = Date.now();
 }
 
 // Rotate active players to the back of the line, next ones play
 function rotate() {
     if (waiting.length === 0) return;
     releaseAll();
-    if (currentP2) waiting.push(currentP2);
-    if (settings.mode === 'vvw' && currentP3) waiting.push(currentP3);
-    
-    currentP2 = waiting.shift();
-    if (settings.mode === 'vvw') {
-        currentP3 = waiting.shift();
-    } else {
-        currentP3 = null; 
+    for (let i = 0; i < MAX_SLOTS; i++) {
+        if (slots[i]) waiting.push(slots[i]);
+        slots[i] = null;
+    }
+    for (let i = 0; i < slotCount(); i++) {
+        if (waiting.length) slots[i] = waiting.shift();
     }
     currentSince = Date.now();
 }
 
 function handleRtcFromPlayer(ws, c, msg) {
-    if (ws !== currentP2) return;   // the fast video link is for Player 2 only; Player 3 gets pictures
-    if (msg.rtc === 'connected') { c.rtcOk = true; return; }          
-    if (msg.rtc === 'failed') { c.rtcOk = false; pumpFrame(); return; }  
+    if (ws !== slots[0]) return;   // the fast video link is for Player 2 only; the others get pictures
+    if (msg.rtc === 'connected') { c.rtcOk = true; return; }
+    if (msg.rtc === 'failed') { c.rtcOk = false; pumpFrame(); return; }
     if ((msg.rtc === 'answer' || msg.rtc === 'ice') && signalWs && signalWs.readyState === WebSocket.OPEN) {
         signalWs.send(JSON.stringify({
             rtc: msg.rtc,
@@ -195,13 +200,13 @@ function updateScreenState() {
     let newPlayer = false;
     const watching = new Set(spectators());
     for (const [ws, c] of clients) {
-        const on = !!shareWs && (ws === currentP2 || ws === currentP3);
+        const on = !!shareWs && isPlayer(ws);
         const spec = !on && watching.has(ws);
         const mode = on ? 'p' : spec ? 's' : '';
         if (c.screenMode !== mode) {
             c.screenMode = mode;
             if (on || spec) { c.inflight = 0; c.sentSeq = -1; c.rtcOk = false; c.sentAt = []; c.rtt = 0; }
-            if (on && ws === currentP2) newPlayer = true;
+            if (on && ws === slots[0]) newPlayer = true;
             wsSend(ws, { role: 'screen', live: on || spec, spectate: spec });
         }
         const hearing = !!audioWs && on;   // only the players get the game sound
@@ -223,7 +228,7 @@ function pumpFrameToClient(targetWs, spec) {
     if (!shareWs || !buf || !targetWs || targetWs.readyState !== WebSocket.OPEN) return;
     const c = clients.get(targetWs);
     if (!c) return;
-    if (!spec && c.rtcOk) return;   
+    if (!spec && c.rtcOk) return;
     const limit = maxInflightFor(c);
     if (c.inflight >= limit && Date.now() - c.lastAck > 2000) { c.inflight = 0; c.sentAt = []; }
     if (c.inflight >= limit || c.sentSeq === seq) return;
@@ -240,8 +245,7 @@ function pumpSpectators() {
 }
 
 function pumpFrame() {
-    if (currentP2) pumpFrameToClient(currentP2);
-    if (currentP3) pumpFrameToClient(currentP3);
+    playersNow().forEach((w) => pumpFrameToClient(w));
 }
 
 function notifyClients() {
@@ -252,10 +256,9 @@ function notifyClients() {
     const left = secondsLeft();
     for (const [ws, c] of clients) {
         if (!c.joined) continue;
-        if (ws === currentP2) {
-            wsSend(ws, { role: 'player', playerNum: 2, secondsLeft: left });
-        } else if (ws === currentP3) {
-            wsSend(ws, { role: 'player', playerNum: 3, secondsLeft: left });
+        const slot = slots.indexOf(ws);
+        if (slot >= 0) {
+            wsSend(ws, { role: 'player', playerNum: slot + 2, secondsLeft: left });
         } else {
             const i = waiting.indexOf(ws);
             if (i >= 0) wsSend(ws, { role: 'queued', position: i + 1, total: waiting.length });
@@ -273,15 +276,15 @@ function sendHelloToUnjoined() {
 function removeClient(ws, keep = true) {
     const c = clients.get(ws);
     if (keep && c && c.joined && c.token) {
-        recent.set(c.token, { wasCurrent: ws === currentP2 || ws === currentP3, pos: waiting.indexOf(ws), at: Date.now() });
+        recent.set(c.token, { wasCurrent: isPlayer(ws), pos: waiting.indexOf(ws), at: Date.now() });
     }
     clients.delete(ws);
     const i = waiting.indexOf(ws);
     if (i >= 0) waiting.splice(i, 1);
-    if (ws === currentP2 || ws === currentP3) {
-        if (ws === currentP2) currentP2 = null;
-        if (ws === currentP3) currentP3 = null;
-        releaseAll();   
+    const slot = slots.indexOf(ws);
+    if (slot >= 0) {
+        slots[slot] = null;
+        releaseAll();
         fillSlot();
     }
     notifyClients();
@@ -291,7 +294,7 @@ function handleJoin(ws, c, msg) {
     if (c.joined) return;
     const token = String(msg.token || '').slice(0, 40);
     const r = token ? recent.get(token) : null;
-    const back = !!(r && Date.now() - r.at < 30000);   
+    const back = !!(r && Date.now() - r.at < 30000);
     if (settings.locked) { wsSend(ws, { role: 'locked' }); return; }
     if (!back && isFull()) { wsSend(ws, { role: 'locked', full: true }); return; }
     if (settings.code && String(msg.code || '').trim() !== settings.code) {
@@ -303,9 +306,9 @@ function handleJoin(ws, c, msg) {
     c.token = token;
     if (back) {
         recent.delete(token);
-        if (r.wasCurrent && (!currentP2 || (settings.mode === 'vvw' && !currentP3))) {
-            if (!currentP2) currentP2 = ws;
-            else if (settings.mode === 'vvw' && !currentP3) currentP3 = ws;
+        const free = r.wasCurrent ? freeSlot() : -1;
+        if (free >= 0) {
+            slots[free] = ws;
             currentSince = Date.now();
         } else {
             waiting.splice(Math.min(Math.max(r.pos, 0), waiting.length), 0, ws);
@@ -323,7 +326,7 @@ function handleJoin(ws, c, msg) {
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server, maxPayload: 16384 });   
+const wss = new WebSocket.Server({ server, maxPayload: 16384 });
 wss.on('error', () => {});   // the clear "port already in use" message below handles this
 
 wss.on('connection', (ws, req) => {
@@ -366,7 +369,7 @@ wss.on('connection', (ws, req) => {
             me.lastAck = Date.now();
             const sentTime = me.sentAt.shift();   // how long that picture took to arrive (the link's delay)
             if (sentTime) { const r = Date.now() - sentTime; me.rtt = me.rtt ? me.rtt * 0.7 + r * 0.3 : r; }
-            if (ws === currentP2 || ws === currentP3) pumpFrameToClient(ws);
+            if (isPlayer(ws)) pumpFrameToClient(ws);
             else if (me.screenMode === 's') pumpFrameToClient(ws, true);
             return;
         }
@@ -377,7 +380,7 @@ wss.on('connection', (ws, req) => {
 
         if (msg.rtc) { handleRtcFromPlayer(ws, me, msg); return; }
         if (msg.type === 'join') { handleJoin(ws, me, msg); return; }
-        if ((ws === currentP2 || ws === currentP3)) handleInput(ws, msg);
+        if (isPlayer(ws)) handleInput(ws, msg);
     });
 
     ws.on('close', () => removeClient(ws));
@@ -402,8 +405,7 @@ feed.on('connection', (ws, req) => {
             if (ws !== audioWs) return;
             const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
             if (buf[0] !== 2 && buf[0] !== 3) return;   // sound packets start with 2 (8-bit) or 3 (16-bit)
-            for (const p of [currentP2, currentP3]) {
-                if (!p) continue;
+            for (const p of playersNow()) {
                 const pc = clients.get(p);
                 const line = pc && pc.audioSock && pc.audioSock.readyState === WebSocket.OPEN ? pc.audioSock : p;
                 // a player whose connection is badly behind skips sound instead of hearing it late
@@ -414,20 +416,20 @@ feed.on('connection', (ws, req) => {
         ws.on('error', () => {});
         return;
     }
-    if (String(req && req.url).includes('signal')) {   
+    if (String(req && req.url).includes('signal')) {
         if (signalWs) { try { signalWs.close(); } catch (e) {} }
         signalWs = ws;
-        if (shareWs && currentP2) ws.send(JSON.stringify({ rtc: 'newplayer' }));
+        if (shareWs && slots[0]) ws.send(JSON.stringify({ rtc: 'newplayer' }));
         ws.on('message', (data) => {
             let m; try { m = JSON.parse(data); } catch (e) { return; }
-            if (!m || !currentP2 || (m.rtc !== 'offer' && m.rtc !== 'ice')) return;
-            wsSend(currentP2, { role: 'rtc', type: m.rtc, sdp: String(m.sdp || '').slice(0, 12000), candidate: m.candidate });
+            if (!m || !slots[0] || (m.rtc !== 'offer' && m.rtc !== 'ice')) return;
+            wsSend(slots[0], { role: 'rtc', type: m.rtc, sdp: String(m.sdp || '').slice(0, 12000), candidate: m.candidate });
         });
         ws.on('close', () => { if (ws === signalWs) signalWs = null; });
         ws.on('error', () => {});
         return;
     }
-    if (shareWs) { try { shareWs.close(); } catch (e) {} }   
+    if (shareWs) { try { shareWs.close(); } catch (e) {} }
     shareWs = ws;
     updateScreenState();
 
@@ -442,9 +444,9 @@ feed.on('connection', (ws, req) => {
             pumpSpectators();
             return;
         }
-        const cur2 = currentP2 && clients.get(currentP2);
-        const cur3 = currentP3 && clients.get(currentP3);
-        if (latest && ((cur2 && !cur2.rtcOk && cur2.sentSeq !== latestSeq) || (cur3 && !cur3.rtcOk && cur3.sentSeq !== latestSeq))) dropped++;
+        const behind = playersNow().map((w) => clients.get(w)).filter(Boolean)
+            .some((c) => !c.rtcOk && c.sentSeq !== latestSeq);
+        if (latest && behind) dropped++;
         latest = buf;
         latestSeq++;
         pumpFrame();
@@ -472,15 +474,15 @@ function applySettings(s) {
     settings.frozen = !!s.frozen;
     const mp = Number(s.maxPlayers);
     settings.maxPlayers = isFinite(mp) ? Math.min(Math.max(Math.round(mp), 0), 100) : 0;
-    settings.mode = s.mode === 'svv' ? 'svv' : 'vvw';
+    settings.mode = MODE_SLOTS[s.mode] ? s.mode : 'vvw';
     settings.spectate = s.spectate !== false;
-    
-    if (settings.mode === 'svv' && currentP3) {
-        waiting.unshift(currentP3);
-        currentP3 = null;
+
+    // Fewer slots than before: the extra players go back to the front of the line
+    for (let i = MAX_SLOTS - 1; i >= slotCount(); i--) {
+        if (slots[i]) { waiting.unshift(slots[i]); slots[i] = null; }
     }
     if (settings.frozen) releaseAll();
-    fillSlot();   // switching back to two players: the next waiting viewer takes the free Player 3 slot
+    fillSlot();   // more slots than before: the next waiting viewers take the free slots
     sendHelloToUnjoined();
 }
 
@@ -494,8 +496,8 @@ function handleAdmin(msg) {
             const i = waiting.indexOf(ws);
             if (i >= 0) {
                 waiting.splice(i, 1);
-                if (currentP2) { releaseAll(); waiting.unshift(currentP2); }
-                currentP2 = ws;
+                if (slots[0]) { releaseAll(); waiting.unshift(slots[0]); }
+                slots[0] = ws;
                 currentSince = Date.now();
             }
             break;
@@ -519,25 +521,24 @@ function handleAdmin(msg) {
 }
 
 function snapshot() {
-    const cur2 = currentP2 ? clients.get(currentP2) : null;
-    const cur3 = currentP3 ? clients.get(currentP3) : null;
-    
-    let currentDesc = 'Nobody playing';
+    // one entry per player slot for the current mode: { id, name, idle } or null when the slot is empty
+    const list = slots.slice(0, slotCount()).map((ws) => {
+        const c = ws ? clients.get(ws) : null;
+        return c ? { id: c.id, name: c.name, idle: c.lastInput ? Math.round((Date.now() - c.lastInput) / 1000) : null } : null;
+    });
+
+    let currentDesc;
     if (settings.mode === 'svv') {
-        currentDesc = cur2 ? `Streamer vs ${cur2.name}` : 'Waiting for Player';
+        currentDesc = list[0] ? `Streamer vs ${list[0].name}` : 'Waiting for Player';
     } else {
-        currentDesc = `${cur2 ? cur2.name : 'None (P2)'} vs ${cur3 ? cur3.name : 'None (P3)'}`;
+        currentDesc = list.map((p, i) => (p ? p.name : `None (P${i + 2})`)).join(' vs ');
     }
 
     return {
         type: 'state',
         padOk,
-        p2: cur2 ? { id: cur2.id, name: cur2.name, idle: cur2.lastInput ? Math.round((Date.now() - cur2.lastInput) / 1000) : null } : null,
-        p3: cur3 ? { id: cur3.id, name: cur3.name, idle: cur3.lastInput ? Math.round((Date.now() - cur3.lastInput) / 1000) : null } : null,
-        current: (cur2 || (settings.mode === 'vvw' && cur3)) ? { 
-            name: currentDesc, 
-            secondsLeft: secondsLeft() 
-        } : null,
+        slots: list,
+        current: list.some(Boolean) ? { name: currentDesc, secondsLeft: secondsLeft() } : null,
         queue: waiting.map(ws => ({ id: clients.get(ws).id, name: clients.get(ws).name })),
         connected: clients.size,
         players: joinedCount(),
@@ -566,14 +567,14 @@ process.on('message', (msg) => {
 setInterval(() => {
     for (const c of clients.values()) c.msgs = 0;
     if (shareWs && shareWs.readyState === WebSocket.OPEN) {
-        const active = [currentP2, currentP3].filter(Boolean).map((w) => clients.get(w)).filter(Boolean);
+        const active = playersNow().map((w) => clients.get(w)).filter(Boolean);
         shareWs.send(JSON.stringify({ stats: { sent: delivered, dropped, spec: spectators().length, rtc: active.length > 0 && active.every((c) => c.rtcOk), rtt: Math.round(Math.max(0, ...active.map((c) => c.rtt || 0))) } }));
     }
     delivered = 0; dropped = 0;
     for (const [t, r] of recent) if (Date.now() - r.at > 30000) recent.delete(t);
-    
-    const requiredWaiting = settings.mode === 'vvw' ? 2 : 1;
-    if ((currentP2 || currentP3) && settings.turnSeconds && waiting.length >= requiredWaiting &&
+
+    // Rotate when enough viewers are waiting to replace everybody (one per player slot)
+    if (playersNow().length && settings.turnSeconds && waiting.length >= slotCount() &&
         Date.now() - currentSince >= settings.turnSeconds * 1000) {
         rotate();
     }
