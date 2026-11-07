@@ -34,9 +34,15 @@ function verifyToken(token, key) {
     if (parts.length !== 2) return { ok: false, reason: 'That is not a license key.' };
     let data;
     try {
-        if (!crypto.verify(null, Buffer.from(parts[0]), key, b64(parts[1]))) return { ok: false, reason: 'The license key is not valid.' };
+        // CHANGED: a wrong signature and a crash now give different messages.
+        // Remove the "(...)" details before you release, if you do not want customers to see them.
+        if (!crypto.verify(null, Buffer.from(parts[0]), key, b64(parts[1]))) {
+            return { ok: false, reason: 'The license key is not valid. (signature does not match public.pem)' };
+        }
         data = JSON.parse(b64(parts[0]).toString('utf8'));
-    } catch (e) { return { ok: false, reason: 'The license key is not valid.' }; }
+    } catch (e) {
+        return { ok: false, reason: 'The license key is not valid. (' + e.message + ')' };
+    }
     if (data.expires && Date.now() > Date.parse(data.expires)) {
         return { ok: false, reason: 'This license expired on ' + String(data.expires).slice(0, 10) + '.', data };
     }
