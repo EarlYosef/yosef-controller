@@ -91,3 +91,5 @@
 2026-11-07T13:14:02.066Z Connect pressed
 2026-11-07T13:14:02.178Z [server] Controller server running on port 3000.
 2026-11-07T13:14:46.252Z Tunnel ready: https://highland-tea-missile-era.trycloudflare.com (not answering yet)
+2026-11-07T13:33:03.017Z admin.js started, version 1.0.0 linux node v26.13.0
+2026-11-07T13:35:00.402Z Disconnect: Disconnected. The controller is closed.

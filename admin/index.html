@@ -77,6 +77,8 @@
     </div>
 
     <div id="live" hidden>
+        <p class="warn" id="limitNote" hidden>No license (or it ended): screen sharing and extra players are locked. Only "Streamer vs Viewer" is available. Add a license key to unlock everything.</p>
+
         <!-- Streamer Pause Button -->
         <div class="box" style="text-align: center;">
             <button id="pauseBtn" class="pause">⏸ Pause / Freeze Match</button>
@@ -88,7 +90,7 @@
                 <span id="cur">Nobody is playing</span>
                 <span><button id="skip">Skip</button></span>
             </div>
-            <!-- CHANGED: one row per player, made by the render() function below (1 to 4 rows) -->
+            <!-- one row per player, made by the render() function below (1 to 4 rows) -->
             <div id="playerRows"></div>
             <div id="queue"></div>
             <p class="hint" id="count"></p>
@@ -96,7 +98,7 @@
         </div>
         <div class="box" id="shareBox">
             <h3>Share my screen</h3>
-            <p class="hint" style="margin-top:0">The players see your game in the middle of their controller with almost no delay. Sound is optional (below). Everyone waiting watches your live stream instead.</p>
+            <p class="hint" style="margin-top:0">The players see your game in the middle of their controller with almost no delay. Sound is optional (below). Everyone waiting watches your live stream instead. Needs a license.</p>
             <div class="row">
                 <select id="shareQ">
                     <option value="low">Low 480 (lightest)</option>
@@ -137,7 +139,6 @@
             <div class="opts">
                 <label>Match Mode
                     <select id="gameMode">
-                        <!-- CHANGED: 4 modes -->
                         <option value="svv">Streamer vs Viewer (1 viewer)</option>
                         <option value="vvw">Viewer vs Viewer (2 viewers)</option>
                         <option value="v3">3 viewers play</option>
@@ -234,6 +235,14 @@ function showMsg(text, err) { $('msg').textContent = text; $('msg').className = 
 function render(m) {
     status = m.status; link = m.link;
     renderLicense(m.license);
+
+    // No license (or it ended): no screen sharing, and only "Streamer vs Viewer"
+    const limited = !(m.license && m.license.valid);
+    $('limitNote').hidden = !limited;
+    $('shareBtn').disabled = limited;
+    [...$('gameMode').options].forEach((o) => { o.disabled = limited && o.value !== 'svv'; });
+    if (limited && share) stopShare('Screen sharing needs a license.', true);
+
     $('lanNote').hidden = !m.lanUrl;
     if (m.lanUrl) $('lanNote').textContent = 'Testing on your Wi-Fi (same network only): ' + m.lanUrl;
     if (m.status !== 'online' && share) stopShare('Stopped: the controller was closed.');
@@ -278,14 +287,14 @@ function render(m) {
         ? `Match: ${st.current.name}` + (st.current.secondsLeft != null ? ` (${st.current.secondsLeft}s left)` : '')
         : 'Waiting for players';
 
-    // CHANGED: Skip needs as many waiting viewers as there are player slots in this mode
-    const count = { svv: 1, vvw: 2, v3: 3, v4: 4 }[s.mode] || 2;
+    // Skip needs as many waiting viewers as there are player slots in this mode
+    const count = { svv: 1, vvw: 2, v3: 3, v4: 4 }[s.mode] || 1;
     $('skip').disabled = st.queue.length < count;
 
     const inputNote = (p) => !p ? '' : p.idle === null ? ' · no button pressed yet'
         : p.idle < 3 ? ' · buttons arriving ✓' : ` · last button ${p.idle}s ago`;
 
-    // CHANGED: one row per player slot, each with its own Kick and Ban buttons
+    // one row per player slot, each with its own Kick and Ban buttons
     const rows = $('playerRows'); rows.textContent = '';
     (st.slots || []).forEach((p, i) => {
         const row = document.createElement('div'); row.className = 'who';

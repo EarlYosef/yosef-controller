@@ -13,7 +13,6 @@ const ADMIN_PORT = 4000;     // admin panel (this computer only)
 const VIEWER_PORT = 3000;    // must match server.js
 const CLOUDFLARED = process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared';
 const VERSION = '1.0.0';
-const TRIAL_MS = 30 * 60 * 1000;   // without a license, one session lasts 30 minutes
 const MODES = ['svv', 'vvw', 'v3', 'v4'];   // 1, 2, 3 or 4 viewers play at the same time
 
 let status = 'offline';      // offline | starting | online | stopping
@@ -22,7 +21,26 @@ let link = '';
 let serverProc = null, tunnelProc = null, serverState = null;
 let settings = { locked: false, code: '', turnSeconds: 180, frozen: false, maxPlayers: 0, mode: 'vvw', spectate: true, lan: false };
 let lic = license.check();
-let trialTimer = null;
+if (!lic.valid) settings.mode = 'svv';   // no license: only Streamer vs Viewer
+
+// Without a license (or after it ends): no screen sharing, and only "Streamer vs Viewer" (1 viewer plays).
+// This tells server.js what is allowed. A valid license unlocks everything.
+function applyLimits() {
+    if (!lic.valid) settings.mode = 'svv';
+    if (serverProc) {
+        try {
+            serverProc.send({ type: 'license', licensed: !!lic.valid });
+            serverProc.send({ type: 'settings', settings });
+        } catch (e) {}
+    }
+}
+setInterval(() => {   // a license that reaches its end date stops unlocking things
+    if (lic.valid && !lic.dev && lic.expires && Date.now() > Date.parse(lic.expires)) {
+        lic = license.check();
+        applyLimits();
+        push();
+    }
+}, 60000);
 
 /* ---------- Log (kept in memory for "Copy diagnostics", and in logs/admin.log) ---------- */
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -47,8 +65,8 @@ async function checkRemote() {
     if (st === 'revoked' || st === 'expired' || st === 'invalid') {
         lic = { valid: false, plan: 'trial', reason: st === 'revoked' ? 'This license was switched off. Contact support.' : 'This license is not valid any more.' };
         log('License check says:', st);
+        applyLimits();   // the controller keeps running, but sharing and extra players lock
         push();
-        if (status === 'online') disconnect('The license was switched off. Contact support.');
     } else if (st === 'ok') {
         lic = license.check();   // a normal check-in also resets the 14-day timer
     }
@@ -76,7 +94,7 @@ function diagnostics() {
         `Time: ${new Date().toISOString()}`,
         `System: ${process.platform} ${os.release()}, Node ${process.version}`,
         `Status: ${status} - ${message}`,
-        `License: ${lic.valid ? 'valid' : 'trial'}${lic.name ? ' (' + lic.name + ')' : ''}${lic.reason ? ' - ' + lic.reason : ''}`,
+        `License: ${lic.valid ? 'valid' : 'none/limited'}${lic.name ? ' (' + lic.name + ')' : ''}${lic.reason ? ' - ' + lic.reason : ''}`,
         `Gamepad driver: ${driver.ok ? 'ok' : 'MISSING'} (${driver.platform})`,
         `Settings: mode=${settings.mode}, maxPlayers=${settings.maxPlayers}, turn=${settings.turnSeconds}s, locked=${settings.locked}, frozen=${settings.frozen}, spectate=${settings.spectate}, wifi=${settings.lan}, joinCode=${settings.code ? 'set' : 'none'}`,
         `Players: ${s.players || 0} joined, ${s.connected || 0} connected, ${(s.queue || []).length} waiting, gamepad ${s.padOk === false ? 'NOT RUNNING' : 'ok'}`,
@@ -143,7 +161,8 @@ wss.on('connection', (ws) => {
         else if (m.cmd === 'license') {
             lic = license.activate(String(m.token || ''));
             log('License:', lic.valid ? 'valid (' + (lic.name || lic.plan) + ')' : lic.reason);
-            if (lic.valid) { clearTimeout(trialTimer); checkRemote(); }
+            if (lic.valid) checkRemote();
+            applyLimits();
             push();
         }
         else if (m.cmd === 'disconnect') disconnect('Disconnected. The controller is closed.');
@@ -154,7 +173,7 @@ wss.on('connection', (ws) => {
                 turnSeconds: Number(m.settings.turnSeconds) || 0,
                 frozen: !!m.settings.frozen,
                 maxPlayers: Number(m.settings.maxPlayers) || 0,
-                mode: MODES.includes(m.settings.mode) ? m.settings.mode : 'vvw',   // CHANGED: 4 modes instead of 2
+                mode: !lic.valid ? 'svv' : MODES.includes(m.settings.mode) ? m.settings.mode : 'vvw',
                 spectate: m.settings.spectate !== false,
                 lan: !!m.settings.lan
             };
@@ -186,7 +205,7 @@ function startServer() {
             if (!msg) return;
             if (msg.type === 'ready') {
                 ready = true; clearTimeout(timer);
-                proc.send({ type: 'settings', settings });
+                applyLimits();   // tells server.js if it is licensed, then sends the settings
                 resolve();
             } else if (msg.type === 'state') { serverState = msg; push(); }
             else if (msg.type === 'input') { broadcast(msg); }   // button presses for the OBS overlay
@@ -260,7 +279,6 @@ function killProc(proc) {
 
 async function teardown() {
     link = '';
-    clearTimeout(trialTimer);
     await killProc(tunnelProc);   // the public link dies first
     await killProc(serverProc);   // then the server (this also closes pad.py)
     tunnelProc = serverProc = null;
@@ -288,13 +306,10 @@ async function connect() {
             if (!reachable) await new Promise((r) => setTimeout(r, 2000));
         }
         log('Tunnel ready:', link, reachable ? '(answers)' : '(not answering yet)');
-        if (!lic.valid) {   // no license: this session ends by itself after 30 minutes
-            trialTimer = setTimeout(() => disconnect('Trial session ended (30 minutes). Add a license key to remove the limit.'), TRIAL_MS);
-        }
         setStatus('online', (reachable
             ? 'Online. Copy the link and paste it in your stream.'
             : 'Online, but the link does not answer yet. Wait 10 seconds and try it again. If it still says connection lost, press Disconnect, then Connect.')
-            + (lic.valid ? '' : ' (Trial: this session ends in 30 minutes.)'));
+            + (lic.valid ? '' : ' (No license: screen sharing and extra players are locked.)'));
     } catch (err) {
         log('Connect failed:', err.message);
         await teardown();

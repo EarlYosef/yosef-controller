@@ -63,6 +63,7 @@ function releaseAll() {
 // How many viewers play at the same time in each mode
 const MODE_SLOTS = { svv: 1, vvw: 2, v3: 3, v4: 4 };
 const MAX_SLOTS = 4;
+let licensed = false;   // set by admin.js. Without a license: no screen sharing, and only 1 viewer plays
 
 // The streamer panel (admin.js) sends these. Without it, these defaults are used.
 const settings = {
@@ -71,11 +72,11 @@ const settings = {
     turnSeconds: 180,   // 0 = no time limit; otherwise the player rotates when others are waiting
     frozen: false,      // true = all inputs are ignored (emergency stop / pause)
     maxPlayers: 0,      // 0 = unlimited; otherwise the game locks itself when this many have joined
-    mode: 'vvw',        // 'svv' = 1 viewer, 'vvw' = 2 viewers, 'v3' = 3 viewers, 'v4' = 4 viewers
+    mode: 'svv',        // 'svv' = 1 viewer, 'vvw' = 2 viewers, 'v3' = 3 viewers, 'v4' = 4 viewers
     spectate: true      // viewers waiting in line can watch the match (a small, light picture)
 };
 
-function slotCount() { return MODE_SLOTS[settings.mode] || 2; }
+function slotCount() { return MODE_SLOTS[settings.mode] || 1; }
 
 const clients = new Map();   // ws -> { id, name, joined, ip, msgs }
 const waiting = [];          // ws objects waiting for a turn, in order
@@ -397,6 +398,7 @@ const feed = new WebSocket.Server({
 });
 
 feed.on('connection', (ws, req) => {
+    if (!licensed) { try { ws.close(1008, 'License needed'); } catch (e) {} return; }   // no screen sharing without a license
     if (String(req && req.url).includes('audio')) {   // game sound from the admin page
         if (audioWs) { try { audioWs.close(); } catch (e) {} }
         audioWs = ws;
@@ -474,7 +476,7 @@ function applySettings(s) {
     settings.frozen = !!s.frozen;
     const mp = Number(s.maxPlayers);
     settings.maxPlayers = isFinite(mp) ? Math.min(Math.max(Math.round(mp), 0), 100) : 0;
-    settings.mode = MODE_SLOTS[s.mode] ? s.mode : 'vvw';
+    settings.mode = !licensed ? 'svv' : MODE_SLOTS[s.mode] ? s.mode : 'vvw';   // no license: only 1 viewer plays
     settings.spectate = s.spectate !== false;
 
     // Fewer slots than before: the extra players go back to the front of the line
@@ -484,6 +486,15 @@ function applySettings(s) {
     if (settings.frozen) releaseAll();
     fillSlot();   // more slots than before: the next waiting viewers take the free slots
     sendHelloToUnjoined();
+}
+
+// admin.js tells us if there is a valid license
+function setLicensed(on) {
+    licensed = !!on;
+    if (!licensed) {   // lock: stop the shared screen, the sound and the fast video link
+        for (const w of [shareWs, audioWs, signalWs]) { try { if (w) w.close(); } catch (e) {} }
+        applySettings(settings);   // forces the 1-viewer mode and moves extra players back to the line
+    }
 }
 
 function handleAdmin(msg) {
@@ -557,7 +568,8 @@ function sendState() {
 
 process.on('message', (msg) => {
     if (!msg || typeof msg !== 'object') return;
-    if (msg.type === 'settings') applySettings(msg.settings);
+    if (msg.type === 'license') setLicensed(msg.licensed);
+    else if (msg.type === 'settings') applySettings(msg.settings);
     else if (msg.type === 'admin') handleAdmin(msg);
     notifyClients();
 });

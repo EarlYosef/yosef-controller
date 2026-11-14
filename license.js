@@ -34,8 +34,7 @@ function verifyToken(token, key) {
     if (parts.length !== 2) return { ok: false, reason: 'That is not a license key.' };
     let data;
     try {
-        // CHANGED: a wrong signature and a crash now give different messages.
-        // Remove the "(...)" details before you release, if you do not want customers to see them.
+        // The text in brackets helps while testing. Remove it before you release, if you do not want customers to see it.
         if (!crypto.verify(null, Buffer.from(parts[0]), key, b64(parts[1]))) {
             return { ok: false, reason: 'The license key is not valid. (signature does not match public.pem)' };
         }
@@ -55,11 +54,11 @@ function check() {
     if (!key) return { valid: true, dev: true, plan: 'developer', name: 'Developer copy (no license key is set up yet)' };
     const saved = readSaved();
     const token = saved.token || '';
-    if (!token) return { valid: false, plan: 'trial', reason: 'No license yet. Trial: each session lasts 30 minutes.' };
+    if (!token) return { valid: false, plan: 'free', reason: 'No license yet. Screen sharing and extra players are locked.' };
     const r = verifyToken(token, key);
-    if (!r.ok) return { valid: false, plan: 'trial', reason: r.reason };
+    if (!r.ok) return { valid: false, plan: 'free', reason: r.reason };
     if (CREATOR_URL && saved.lastOk && Date.now() - saved.lastOk > MUST_CHECK_IN_MS) {
-        return { valid: false, plan: 'trial', reason: 'Connect to the internet once so the license can be confirmed.' };
+        return { valid: false, plan: 'free', reason: 'Connect to the internet once so the license can be confirmed.' };
     }
     return { valid: true, plan: r.data.plan || 'standard', name: r.data.name || '', expires: r.data.expires || '', id: r.data.id || '' };
 }
@@ -101,7 +100,7 @@ function activate(token) {
     const key = publicKey();
     if (!key) return { valid: true, dev: true, plan: 'developer', name: 'Developer copy (no license key is set up yet)' };
     const r = verifyToken(token, key);
-    if (!r.ok) return { valid: false, plan: 'trial', reason: r.reason };
+    if (!r.ok) return { valid: false, plan: 'free', reason: r.reason };
     try { fs.writeFileSync(LICENSE_FILE, JSON.stringify({ token: String(token).trim(), lastOk: Date.now() })); } catch (e) {}
     return check();
 }
